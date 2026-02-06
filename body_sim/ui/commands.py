@@ -8,9 +8,8 @@ from dataclasses import dataclass
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich import box
+from rich import box  # Импортируем box модули
 
-from body_sim.core.enums import UterusState
 from body_sim.characters.roxy_migurdia import register_roxy_command
 
 console = Console()
@@ -117,10 +116,195 @@ class CommandContext:
 
 def cmd_help(args: List[str], ctx: CommandContext):
     """Показать справку."""
-    if ctx.registry:
-        console.print(Panel(ctx.registry.get_help(), title="[bold]Available Commands[/bold]"))
-    else:
+    if not ctx.registry:
         console.print("[red]Registry not available[/red]")
+        return
+
+    if not args:
+        # Общая справка по категориям
+        console.print(Panel(ctx.registry.get_help(), title="[bold]Available Commands[/bold]"))
+        console.print("\n[dim]Type 'help <category>' for detailed help:[/dim]")
+        console.print("  [cyan]help uterus[/cyan] - Uterus, ovaries, tubes commands")
+        console.print("  [cyan]help breasts[/cyan] - Breast and lactation commands")
+        console.print("  [cyan]help genitals[/cyan] - Genitals and penetration commands")
+        console.print("  [cyan]help general[/cyan] - General commands")
+        return
+
+    topic = args[0].lower()
+
+    if topic == "uterus":
+        help_text = """
+[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
+[bold cyan]║           UTERUS / OVARIES / FALLOPIAN TUBES                 ║[/bold cyan]
+[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
+
+[bold yellow]🌸 UTERUS COMMANDS (uterus / ut / womb)[/bold yellow]
+
+  [green]uterus[/green]                    - Show full uterus system status
+  [green]uterus status [idx][/green]       - Detailed view of specific uterus
+  [green]uterus add_fluid <type> <amount> [idx][/green]
+                            - Add fluid (milk, cum, water, honey, oil)
+  [green]uterus drain [idx][/green]       - Remove all fluids
+  [green]uterus dilate [amount][/green]  - Dilate cervix (cm)
+  [green]uterus contract[/green]         - Contract cervix
+  [green]uterus insert <object>[/green]  - Insert object (egg, ball, beads, speculum)
+  [green]uterus remove [idx][/green]     - Remove object by index
+
+[bold red]⚠️ PROLAPSE & EVERSION COMMANDS[/bold red]
+
+  [green]uterus strain [force][/green]     - Apply strain (0.0-1.0), risk of prolapse
+  [green]uterus evert[/green]            - [red]FORCE COMPLETE EVERSION[/red]
+                            (ejects all contents, tubes visible externally)
+  [green]uterus invert[/green]           - Invert uterus (internal, tubes visible inside)
+  [green]uterus reduce [amount][/green]    - Try to reduce prolapse (manual reposition)
+
+[bold yellow]🥚 OVARY COMMANDS (ovary / ov / ovaries)[/bold yellow]
+
+  [green]ovary[/green]                    - Show all ovaries
+  [green]ovary status <side>[/green]     - Show specific ovary (left/right)
+  [green]ovary enlarge [amt] [side][/green] - Enlarge follicles
+  [green]ovary rupture [idx] [side][/green] - Rupture follicle (ovulation)
+  [green]ovary ovulate [idx] [side][/green] - Trigger ovulation
+
+[bold red]⚠️ OVARY PROLAPSE[/bold red]
+
+  [green]ovary evert [deg] [side][/green]  - [red]EVERT OVARY externally[/red]
+  [green]ovary reposition [amt] [side][/green] - Try to reposition ovary
+
+[bold yellow]🌊 FALLOPIAN TUBE COMMANDS (tube / ft / tubes)[/bold yellow]
+
+  [green]tube[/green]                     - Show all tubes
+  [green]tube status <side>[/green]      - Show specific tube
+  [green]tube stretch <ratio> [side][/green] - Stretch tube (1.0-3.0x)
+  [green]tube add_fluid <amt> [side][/green] - Add fluid to tube
+  [green]tube clear [side][/green]       - Clear tube contents
+
+[bold red]⚠️ TUBE EVERSION (requires stretched tube + visible openings)[/bold red]
+
+  [green]tube evert <side>[/green]       - [red]EVERT TUBE WITH OVARY[/red]
+                            (requires: uterus inverted/everted + stretch >2.0)
+  [green]tube reposition [side][/green]  - Reposition tube
+
+[bold magenta]╔══════════════════════════════════════════════════════════════╗[/bold magenta]
+[bold magenta]║                    MECHANICS GUIDE                           ║[/bold magenta]
+[bold magenta]╚══════════════════════════════════════════════════════════════╝[/bold magenta]
+
+[yellow]Prolapse Risk Factors:[/yellow]
+  • Weak ligaments (ligament_integrity)
+  • Weak pelvic floor
+  • Overstretched walls
+  • High internal pressure (fluids/objects)
+  • Tissue fatigue
+
+[yellow]Eversion Requirements:[/yellow]
+  1. Uterus must be in EVERTED or INVERTED state
+  2. Fallopian tubes must be stretched (>2.0x)
+  3. Then: [cyan]tube evert <side>[/cyan] to pull ovary out
+
+[yellow]States:[/yellow]
+  • NORMAL → DESCENDED → PROLAPSED → [red]EVERTED[/red]
+  • INVERTED (special state, tubes visible internally)
+
+[yellow]Ovary States:[/yellow]
+  • NORMAL → ENLARGED → PROLAPSED → [red]EVERTED[/red] → TORSION (ischemia!)
+        """
+        console.print(Panel(help_text, title="[bold]Uterus System Help[/bold]", border_style="bright_magenta"))
+
+    elif topic == "breasts":
+        help_text = """
+[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
+[bold cyan]║                    BREAST COMMANDS                           ║[/bold cyan]
+[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
+
+[bold yellow]🍼 BASIC COMMANDS[/bold yellow]
+
+  [green]add_fluid <type> <amount> [row] [col][/green]
+                            - Add fluid to breast
+  [green]drain [percentage][/green]      - Drain fluid from all breasts
+  [green]lactation[/green]               - Show lactation status
+  [green]lactation start [r] [c][/green] - Start lactation
+  [green]lactation stop [r] [c][/green]  - Stop lactation
+  [green]lactation stimulate [r] [c][/green] - Stimulate lactation
+
+[bold yellow]📦 INSERTION SYSTEM[/bold yellow]
+
+  [green]insert <type> <row> [col] [diameter][/green]
+                            - Insert object into breast
+                            Types: plug, tube, balloon, beads, egg, vibrator
+  [green]remove <row> [col] [obj_idx][/green]
+                            - Remove object from breast
+
+[bold magenta]States:[/bold magenta] EMPTY → NORMAL → TENSE → [red]OVERPRESSURED[/red] → [blue]LEAKING[/blue]
+        """
+        console.print(Panel(help_text, title="[bold]Breast System Help[/bold]", border_style="bright_cyan"))
+
+    elif topic == "genitals":
+        help_text = """
+[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
+[bold cyan]║                   GENITAL COMMANDS                           ║[/bold cyan]
+[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
+
+[bold yellow]🔥 STIMULATION[/bold yellow]
+
+  [green]stimulate <region> [idx] [intensity][/green]
+                            - Stimulate body part
+                            Regions: penis, clitoris, vagina, anus, breasts
+
+[bold yellow]🔞 PENETRATION & EJACULATION[/bold yellow]
+
+  [green]penetrate <target> <idx> [penis_idx][/green]
+                            - Penetrate orifice
+                            Targets: vagina, anus
+  [green]ejaculate [penis_idx] [force][/green]
+                            - Ejaculate from penis
+
+[bold magenta]Penis Types:[/bold magenta] human, knotted, tapered, flared, barbed, double,
+              prehensile, equine, canine, feline, dragon, demon,
+              tentacle, horseshoe, spiral, ribbed, bifurcated
+
+[bold magenta]Vagina Types:[/bold magenta] human, sinuous, deepcave, ribbed, tentacled,
+               demonic, plant, slime
+        """
+        console.print(Panel(help_text, title="[bold]Genitals Help[/bold]", border_style="bright_red"))
+
+    elif topic == "general":
+        help_text = """
+[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
+[bold cyan]║                   GENERAL COMMANDS                           ║[/bold cyan]
+[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
+
+[bold yellow]🎮 CONTROL[/bold yellow]
+
+  [green]help [topic][/green]            - Show help (topics: uterus, breasts, genitals)
+  [green]quit / q / exit[/green]       - Exit program
+  [green]tick [dt][/green]             - Update simulation (time delta)
+
+[bold yellow]👤 BODY MANAGEMENT[/bold yellow]
+
+  [green]list / ls / bodies[/green]    - List all bodies
+  [green]select <idx> / sel[/green]    - Select body by index
+  [green]next / n[/green]              - Next body
+  [green]prev / p[/green]              - Previous body
+  [green]show / s / status[/green]     - Show active body details
+  [green]create <type> [name][/green]  - Create new body (male/female/futa)
+  [green]roxy / migurdia[/green]       - Create Roxy Migurdia character
+
+[bold yellow]📊 DISPLAY[/bold yellow]
+
+  Use [cyan]show[/cyan] command to see full body status including:
+  • Body stats (arousal, pleasure, pain, fatigue)
+  • Breast grid with fill levels
+  • Genitals status
+  • Uterus system (if present)
+        """
+        console.print(Panel(help_text, title="[bold]General Commands Help[/bold]", border_style="bright_green"))
+
+    else:
+        console.print(f"[yellow]Unknown help topic: {topic}[/yellow]")
+        console.print("[dim]Available topics: uterus, breasts, genitals, general[/dim]")
+        console.print("[dim]Or use 'help' without arguments for command list[/dim]")
+
+
 
 
 def cmd_quit(args: List[str], ctx: CommandContext):
@@ -207,7 +391,7 @@ def cmd_add_fluid(args: List[str], ctx: CommandContext):
         console.print("[red]No breasts available[/red]")
         return
 
-    if len(args) < 2:
+    if len(args) < 1:
         console.print("[red]Usage: add_fluid <fluid_type> <amount> [row] [col][/red]")
         console.print("Types: milk, cum, water, honey, oil, custom")
         return
@@ -275,7 +459,7 @@ def cmd_insert(args: List[str], ctx: CommandContext):
         console.print("[red]No breasts available[/red]")
         return
 
-    if len(args) < 2:
+    if len(args) < 1:
         console.print("[red]Usage: insert <object_type> <row> [col] [diameter][/red]")
         console.print("Types: plug, tube, balloon, beads, egg, vibrator")
         return
@@ -360,7 +544,7 @@ def cmd_penetration(args: List[str], ctx: CommandContext):
         console.print("[red]No body selected[/red]")
         return
 
-    if len(args) < 2:
+    if len(args) < 1:
         console.print("[red]Usage: penetrate <target> <target_idx> [penis_idx][/red]")
         console.print("Targets: vagina, anus")
         return
@@ -431,8 +615,26 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
         console.print(renderer.render_full_system(system))
         return
 
+    # Отладка
+    console.print(f"[dim]DEBUG: args={args}[/dim]")
+
     action = args[0].lower()
-    uterus_idx = int(args[1]) if len(args) > 1 else 0
+
+    # Убираем action из args (создаем копию!)
+    args = list(args[1:])
+
+    console.print(f"[dim]DEBUG: action={action}, args after pop={args}[/dim]")
+
+    # Определяем индекс матки - только если последний аргумент число 0-9
+    uterus_idx = 0
+    if args:
+        try:
+            potential_idx = int(args[-1])
+            if 0 <= potential_idx <= 9 and len(system.uteri) > potential_idx:
+                uterus_idx = potential_idx
+                args = args[:-1]  # Удаляем индекс из args
+        except ValueError:
+            pass  # Последний аргумент не число, используем индекс 0
 
     if uterus_idx >= len(system.uteri):
         console.print(f"[red]Invalid uterus index: {uterus_idx}[/red]")
@@ -446,14 +648,14 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
         console.print(renderer.render_uterus_detailed(uterus, f"Uterus #{uterus_idx}"))
 
     elif action == "add_fluid":
-        if len(args) < 3:
+        if len(args) < 2:
             console.print("[red]Usage: uterus add_fluid <type> <amount> [idx][/red]")
             return
         from body_sim.core.enums import FluidType
-        fluid_type = FluidType[args[1].upper()]
-        amount = float(args[2])
+        fluid_type = FluidType[args[0].upper()]
+        amount = float(args[1])
         added = uterus.add_fluid(fluid_type, amount)
-        console.print(f"[cyan]Added {added:.1f}ml of {args[1].upper()} to uterus #{uterus_idx}[/cyan]")
+        console.print(f"[cyan]Added {added:.1f}ml of {args[0].upper()} to uterus #{uterus_idx}[/cyan]")
 
     elif action == "drain":
         removed = uterus.remove_fluid()
@@ -461,7 +663,7 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
         console.print(f"[yellow]Drained {total:.1f}ml from uterus #{uterus_idx}[/yellow]")
 
     elif action == "dilate":
-        amount = float(args[1]) if len(args) > 1 else 1.0
+        amount = float(args[0]) if args else 1.0
         uterus.cervix.dilate(amount)
         console.print(f"[magenta]Dilated cervix to {uterus.cervix.current_dilation:.1f}cm[/magenta]")
 
@@ -470,7 +672,7 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
         console.print("[green]Cervix contracted[/green]")
 
     elif action == "strain":
-        force = float(args[1]) if len(args) > 1 else 0.5
+        force = float(args[0]) if args else 0.5
         result = uterus.apply_strain(force)
         if result:
             console.print(f"[red]⚠️ Prolapse progressed! State: {uterus.state.name}[/red]")
@@ -478,14 +680,14 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
             console.print("[green]Strain applied, no prolapse[/green]")
 
     elif action == "evert":
-        if uterus.state.value != UterusState.EVERTED:
+        if uterus.state != UterusState.EVERTED:
             uterus._complete_eversion()
             console.print(f"[bold red]🔴 UTERUS EVERTED! All contents ejected.[/bold red]")
         else:
             console.print("[yellow]Already everted[/yellow]")
 
     elif action == "reduce":
-        amount = float(args[1]) if len(args) > 1 else 0.5
+        amount = float(args[0]) if args else 0.5
         success = uterus.reduce_prolapse(amount)
         if success:
             console.print(f"[green]Prolapse reduced. State: {uterus.state.name}[/green]")
@@ -493,7 +695,7 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
             console.print("[red]Failed to reduce - requires medical intervention[/red]")
 
     elif action == "invert":
-        force = float(args[1]) if len(args) > 1 else 1.0
+        force = float(args[0]) if args else 1.0
         success = uterus.invert(force)
         if success:
             console.print(f"[red]Uterus inverted! Tube openings visible internally.[/red]")
@@ -501,10 +703,10 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
             console.print("[red]Cannot invert - uterus not in normal state[/red]")
 
     elif action == "insert":
-        if len(args) < 2:
-            console.print("[red]Usage: uterus insert <object_type> [idx][/red]")
+        if not args:
+            console.print("[red]Usage: uterus insert <object_type>[/red]")
             return
-        obj_type = args[1].lower()
+        obj_type = args[0].lower()
         # Создаем простой объект для вставки
         class SimpleObject:
             def __init__(self, name, volume, diameter):
@@ -533,7 +735,7 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
             console.print("[red]Failed to insert - cervix closed or no space[/red]")
 
     elif action == "remove":
-        idx = int(args[1]) if len(args) > 1 else 0
+        idx = int(args[0]) if args else 0
         obj = uterus.remove_object(idx)
         if obj:
             console.print(f"[green]Removed {obj.name} from uterus[/green]")
@@ -543,7 +745,6 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
     else:
         console.print(f"[red]Unknown action: {action}[/red]")
         console.print("Actions: status, add_fluid, drain, dilate, contract, strain, evert, reduce, invert, insert, remove")
-
 
 def cmd_ovary(args: List[str], ctx: CommandContext):
     """Управление яичниками (ovaries)."""
@@ -569,8 +770,29 @@ def cmd_ovary(args: List[str], ctx: CommandContext):
         return
 
     action = args[0].lower()
-    side = args[1].lower() if len(args) > 1 else "left"
-    uterus_idx = int(args[2]) if len(args) > 2 else 0
+
+    # Убираем action из args
+    args = args[1:]
+
+    # Определяем side и uterus_idx
+    side = "left"
+    uterus_idx = 0
+
+    # Проверяем последний аргумент на индекс матки (0-9)
+    if args:
+        try:
+            potential_idx = int(args[-1])
+            if 0 <= potential_idx <= 9 and len(system.uteri) > potential_idx:
+                uterus_idx = potential_idx
+                args = args[:-1]
+        except ValueError:
+            pass
+
+    # Проверяем первый аргумент на side
+    if args:
+        if args[0].lower() in ("left", "right"):
+            side = args[0].lower()
+            args = args[1:]
 
     if uterus_idx >= len(system.uteri):
         console.print(f"[red]Invalid uterus index[/red]")
@@ -589,12 +811,12 @@ def cmd_ovary(args: List[str], ctx: CommandContext):
         console.print(renderer.render_ovary_detailed(ovary))
 
     elif action == "enlarge":
-        amount = float(args[2]) if len(args) > 2 else 0.3
+        amount = float(args[0]) if args else 0.3
         ovary.enlarge_follicles(amount)
         console.print(f"[yellow]Follicles enlarged on {side} ovary[/yellow]")
 
     elif action == "rupture":
-        idx = int(args[2]) if len(args) > 2 else 0
+        idx = int(args[0]) if args else 0
         success = ovary.rupture_follicle(idx)
         if success:
             console.print(f"[magenta]Follicle {idx} ruptured! Ovulation occurred.[/magenta]")
@@ -602,13 +824,13 @@ def cmd_ovary(args: List[str], ctx: CommandContext):
             console.print("[red]Failed to rupture follicle[/red]")
 
     elif action == "evert":
-        degree = float(args[2]) if len(args) > 2 else 1.0
+        degree = float(args[0]) if args else 1.0
         ovary.evert(degree)
         console.print(f"[bold red]🔴 {side.upper()} OVARY EVERTED![/bold red]")
         console.print(f"[red]Visible externally: {ovary.external_description}[/red]")
 
     elif action == "reposition":
-        amount = float(args[2]) if len(args) > 2 else 0.5
+        amount = float(args[0]) if args else 0.5
         success = ovary.reposition(amount)
         if success:
             console.print(f"[green]{side} ovary repositioned. State: {ovary.state.name}[/green]")
@@ -616,7 +838,7 @@ def cmd_ovary(args: List[str], ctx: CommandContext):
             console.print("[red]Failed to reposition - requires stronger intervention[/red]")
 
     elif action == "ovulate":
-        follicle_idx = int(args[2]) if len(args) > 2 else -1
+        follicle_idx = int(args[0]) if args else -1
         success = uterus.ovulate(side, follicle_idx)
         if success:
             if ovary.is_everted:
@@ -629,7 +851,6 @@ def cmd_ovary(args: List[str], ctx: CommandContext):
     else:
         console.print(f"[red]Unknown action: {action}[/red]")
         console.print("Actions: status, enlarge, rupture, evert, reposition, ovulate")
-
 
 def cmd_tube(args: List[str], ctx: CommandContext):
     """Управление фаллопиевыми трубами (fallopian tubes)."""
@@ -655,8 +876,29 @@ def cmd_tube(args: List[str], ctx: CommandContext):
         return
 
     action = args[0].lower()
-    side = args[1].lower() if len(args) > 1 else "left"
-    uterus_idx = int(args[2]) if len(args) > 2 else 0
+
+    # Убираем action из args
+    args = args[1:]
+
+    # Определяем side и uterus_idx
+    side = "left"
+    uterus_idx = 0
+
+    # Проверяем последний аргумент на индекс матки (0-9)
+    if args:
+        try:
+            potential_idx = int(args[-1])
+            if 0 <= potential_idx <= 9 and len(system.uteri) > potential_idx:
+                uterus_idx = potential_idx
+                args = args[:-1]
+        except ValueError:
+            pass
+
+    # Проверяем первый аргумент на side
+    if args:
+        if args[0].lower() in ("left", "right"):
+            side = args[0].lower()
+            args = args[1:]
 
     if uterus_idx >= len(system.uteri):
         console.print(f"[red]Invalid uterus index[/red]")
@@ -675,7 +917,7 @@ def cmd_tube(args: List[str], ctx: CommandContext):
         console.print(renderer.render_tube_detailed(tube))
 
     elif action == "stretch":
-        ratio = float(args[2]) if len(args) > 2 else 2.0
+        ratio = float(args[0]) if args else 2.0
         success = tube.stretch(ratio)
         if success:
             console.print(f"[yellow]{side} tube stretched to ×{ratio:.1f}[/yellow]")
@@ -706,7 +948,7 @@ def cmd_tube(args: List[str], ctx: CommandContext):
         console.print(f"[green]{side} tube repositioned[/green]")
 
     elif action == "add_fluid":
-        amount = float(args[2]) if len(args) > 2 else 5.0
+        amount = float(args[0]) if args else 5.0
         tube.contained_fluid += amount
         console.print(f"[cyan]Added {amount:.1f}ml fluid to {side} tube[/cyan]")
 
@@ -718,7 +960,6 @@ def cmd_tube(args: List[str], ctx: CommandContext):
     else:
         console.print(f"[red]Unknown action: {action}[/red]")
         console.print("Actions: status, stretch, evert, reposition, add_fluid, clear")
-
 
 # ============ Создание реестра команд ============
 
