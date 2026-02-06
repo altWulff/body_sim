@@ -1,9 +1,10 @@
 # body_sim/ui/rich_render.py
 """
 Компактный Rich-рендеринг для маленьких консолей.
+Использует breast_render для рендеринга груди.
 """
 
-from typing import List, Optional, TYPE_CHECKING, Dict, Any, Tuple
+from typing import List, Optional, TYPE_CHECKING, Dict, Any
 from dataclasses import dataclass
 
 from rich.console import Console, Group, RenderableType
@@ -26,6 +27,11 @@ if TYPE_CHECKING:
 from body_sim.core.enums import Sex, FluidType, BreastState, LactationState, BodyType
 from body_sim.core.fluids import FLUID_DEFS
 
+# Импорт нового рендерера груди
+from body_sim.ui.breast_render import (
+    BreastRenderer,
+    render_breast_compact
+)
 
 console = Console()
 
@@ -135,132 +141,49 @@ def make_compact_gradient_bar(value: float, max_value: float, width: int = 8) ->
 
 
 # ======================
-# COMPACT BREAST RENDER
+# COMPACT BREAST RENDER (адаптировано под breast_render)
 # ======================
 
+# Глобальный экземпляр рендерера для переиспользования
+_breast_renderer: Optional[BreastRenderer] = None
+
+def _get_breast_renderer() -> BreastRenderer:
+    """Получить или создать экземпляр BreastRenderer."""
+    global _breast_renderer
+    if _breast_renderer is None:
+        _breast_renderer = BreastRenderer()
+    return _breast_renderer
+
+
 def render_breast_compact(breast, label: str = "") -> Panel:
-    """Компактный рендер груди (одна строка)."""
-    state = breast._state
-    style = STATE_STYLES.get(state, "white")
-    emoji = STATE_EMOJIS.get(state, "○")
-    
-    # Однострочная сводка
-    dyn_cup = breast.dynamic_cup.name
-    base_cup = breast.cup.name
-    cup_str = f"{base_cup}→{dyn_cup}" if dyn_cup != base_cup else base_cup
-    
-    pressure = breast.pressure(FLUID_DEFS)
-    p_color = "green" if pressure < 1.0 else "yellow" if pressure < 2.0 else "red"
-    
-    fill_pct = 0
-    if breast.volume and breast.volume > 0:
-        fill_pct = (breast.filled / breast.volume) * 100
-    
-    lact = "L" if breast.lactation.state != LactationState.OFF else " "
-    stretch = f"S{breast.inflation.stretch_ratio:.1f}" if breast.inflation.stretch_ratio > 1.1 else "  "
-    
-    content = (
-        f"{emoji} [bold]{label}[/bold] {cup_str} | "
-        f"[{p_color}]P{pressure:.1f}[/{p_color}] | "
-        f"💧{fill_pct:.0f}% | "
-        f"sag:{breast.sag:.2f} {lact}{stretch}"
-    )
-    
-    # Предупреждения компактно
-    warnings = []
-    if state == BreastState.LEAKING:
-        warnings.append("[red]LEAK[/red]")
-    if pressure > 2.5:
-        warnings.append("[red]HIGH P[/red]")
-    
-    if warnings:
-        content += " | " + " ".join(warnings)
-    
-    return Panel(
-        content,
-        title=f"{label}",
-        border_style=style,
-        box=box.SIMPLE,
-        padding=(0, 1)
-    )
+    """
+    Компактный рендер груди (обёртка над breast_render).
+    Сохраняет совместимость со старым интерфейсом.
+    """
+    # Используем новый рендерер, но с компактными настройками
+    renderer = _get_breast_renderer()
+    return renderer.render_breast_compact(breast, label)
 
 
 def render_breast_detail(breast, label: str = "") -> Panel:
-    """Детальный но компактный рендер груди."""
-    state = breast._state
-    style = STATE_STYLES.get(state, "white")
-    emoji = STATE_EMOJIS.get(state, "○")
-    
-    title = f"{emoji} {label}: [{style}]{state.name[:4]}[/{style}]"
-    
-    # Компактная таблица (2 колонки)
-    table = Table(show_header=False, box=None, padding=(0, 1))
-    table.add_column("Key", style="cyan", width=8)
-    table.add_column("Val", style="white", width=12)
-    table.add_column("Key", style="cyan", width=8)
-    table.add_column("Val", style="white", width=12)
-    
-    # Размер
-    dyn_cup = breast.dynamic_cup.name
-    base_cup = breast.cup.name
-    cup_str = f"{base_cup}→{dyn_cup}" if dyn_cup != base_cup else base_cup
-    
-    # Давление
-    pressure = breast.pressure(FLUID_DEFS)
-    p_bar = make_compact_bar(pressure, 3.0, width=6, color="green" if pressure < 1.0 else "yellow" if pressure < 2.0 else "red")
-    
-    # Заполнение
-    fill_pct = 0
-    if breast.volume and breast.volume > 0:
-        fill_pct = (breast.filled / breast.volume) * 100
-    
-    table.add_row("Cup:", cup_str, "Press:", f"{p_bar} {pressure:.1f}")
-    table.add_row("Fill:", f"{fill_pct:.0f}% ({breast.filled:.0f}ml)", "Sag:", f"{breast.sag:.2f}")
-    table.add_row("Elast:", f"{breast.elasticity:.2f}", "Avail:", f"{breast.available_volume:.0f}ml")
-    
-    # Лактация
-    lact = breast.lactation
-    if lact.state != LactationState.OFF:
-        table.add_row("Lact:", f"{lact.state.name[:4]} {lact.base_rate_per_100ml:.1f}", "Horm:", f"{lact.hormone_level:.1f}")
-    
-    # Соски (компактно)
-    nip_info = []
-    for idx, nip in enumerate(breast.areola.nipples[:2]):  # Макс 2 соска
-        open_str = "O" if nip.is_open else "C"
-        nip_info.append(f"{open_str}{idx}:{nip.gape_diameter:.1f}cm")
-    if nip_info:
-        table.add_row("Nips:", " | ".join(nip_info), "", "")
-    
-    # Объекты
-    if breast.insertion_manager.inserted_objects:
-        obj_count = len(breast.insertion_manager.inserted_objects)
-        obj_vol = sum(obj.effective_volume for obj in breast.insertion_manager.inserted_objects)
-        table.add_row(f"Objs({obj_count}):", f"{obj_vol:.0f}ml", "", "")
-    
-    # Жидкости (компактно)
-    if breast.mixture.components:
-        fluid_parts = []
-        total = breast.mixture.total()
-        for ft, vol in list(breast.mixture.components.items())[:3]:  # Макс 3 типа
-            emoji = FLUID_EMOJIS.get(ft, "?")
-            fluid_parts.append(f"{emoji}{vol:.0f}")
-        table.add_row("Fluids:", " | ".join(fluid_parts) + f" ={total:.0f}ml", "", "")
-    
-    return Panel(
-        table,
-        title=title,
-        border_style=style,
-        box=box.ROUNDED,
-        padding=(0, 1)
-    )
+    """
+    Детальный но компактный рендер груди (обёртка).
+    """
+    renderer = _get_breast_renderer()
+    return renderer.render_breast_detailed(breast, label)
 
 
 # ======================
-# COMPACT BREAST GRID
+# COMPACT BREAST GRID (адаптировано)
 # ======================
 
-def render_breasts(grid, compact: bool = True) -> RenderableType:
-    """Компактное отображение сетки грудей."""
+def render_breasts(grid, compact: bool = False) -> RenderableType:
+    """
+    Компактное отображение сетки грудей.
+    Использует новый BreastRenderer.
+    """
+    renderer = _get_breast_renderer()
+    
     all_breasts = grid.all()
     total_breasts = len(all_breasts)
     
@@ -273,12 +196,16 @@ def render_breasts(grid, compact: bool = True) -> RenderableType:
     leak_str = f" [red]L:{leaking_count}[/red]" if leaking_count > 0 else ""
     header_text = f"🍼 B:{total_breasts} | 💧{total_filled:.0f}/{total_capacity:.0f}ml ({fill_pct:.0f}%){leak_str}"
     
+    # Используем новый рендер сетки
+    grid_panel = renderer.render_grid(grid, title=header_text)
+    
+    # Адаптируем стиль под компактный вид
     if compact and len(grid.rows) == 1 and len(grid.rows[0]) <= 2:
-        # Для 1-2 грудей - горизонтальное расположение
+        # Для 1-2 грудей используем компактные панели
         panels = []
         for c_idx, breast in enumerate(grid.rows[0]):
             label = grid.get_label(0, c_idx)
-            panels.append(render_breast_compact(breast, label))
+            panels.append(renderer.render_breast_compact(breast, label))
         
         return Panel(
             Columns(panels, equal=True, expand=True),
@@ -288,26 +215,7 @@ def render_breasts(grid, compact: bool = True) -> RenderableType:
             padding=(0, 1)
         )
     
-    # Для многих грудей - таблица
-    all_rows = []
-    for r_idx, row in enumerate(grid.rows):
-        panels = []
-        for c_idx, breast in enumerate(row):
-            label = grid.get_label(r_idx, c_idx)
-            if compact:
-                panels.append(render_breast_compact(breast, label))
-            else:
-                panels.append(render_breast_detail(breast, label))
-        
-        all_rows.append(Columns(panels, equal=True, expand=True))
-    
-    return Panel(
-        Group(*all_rows),
-        title=header_text,
-        box=box.SIMPLE,
-        border_style="bright_magenta",
-        padding=(0, 1)
-    )
+    return grid_panel
 
 
 # ======================
@@ -339,7 +247,7 @@ def render_body_header(body) -> Panel:
     )
     
     return Panel(
-        f"{header_line}\\n{stats_line}",
+        f"{header_line}\n{stats_line}",
         title="[bold]Character[/bold]",
         border_style=sex_color,
         box=box.SIMPLE,
@@ -412,33 +320,6 @@ def render_scrotum_compact(scrotum, index: int = 0) -> str:
     return f"🥚#{index}:{testicles}t F{fullness:.0%}"
 
 
-# def render_genitals(body) -> Panel:
-#     """Компактное отображение гениталий."""
-#     lines = []
-    
-#     if body.has_penis:
-#         penis_line = " | ".join(render_penis_compact(p, i) for i, p in enumerate(body.penises))
-#         lines.append(f"[bold]P:[/bold] {penis_line}")
-    
-#     if body.has_vagina:
-#         vagina_line = " | ".join(render_vagina_compact(v, i) for i, v in enumerate(body.vaginas))
-#         lines.append(f"[bold]V:[/bold] {vagina_line}")
-    
-#     if body.has_scrotum:
-#         scrotum_line = " | ".join(render_scrotum_compact(s, i) for i, s in enumerate(body.scrotums))
-#         lines.append(f"[bold]S:[/bold] {scrotum_line}")
-    
-#     if not lines:
-#         return Panel("[dim]No genitals[/dim]", title="Genitals", box=box.SIMPLE, border_style="dim")
-    
-#     return Panel(
-#         "\\n".join(lines),
-#         title="[bold]🔞 Genitals[/bold]",
-#         border_style="bright_red",
-#         box=box.SIMPLE,
-#         padding=(0, 1)
-#     )
-
 def render_genitals(body) -> Panel:
     from .genitals_render import render_genitals
     return render_genitals(body)
@@ -471,7 +352,7 @@ def render_uterus_section(body) -> Optional[Panel]:
 # ======================
 
 def render_full_body(body, show_breasts: bool = True, show_genitals: bool = True, 
-                     show_uterus: bool = True, compact: bool = True) -> RenderableType:
+                     show_uterus: bool = True, compact: bool = False) -> RenderableType:
     """Компактное полное отображение тела."""
     has_breasts = show_breasts and body.has_breasts
     has_genitals = show_genitals and (body.has_penis or body.has_vagina)
@@ -511,15 +392,21 @@ def render_character_tree(body) -> Tree:
     stats = body.stats
     root.add(f"A:{stats.arousal:.0%} P:{stats.pleasure:.2f} 💔{stats.pain:.2f} 😴{stats.fatigue:.2f}")
     
+    # Грудь через новый рендерер
     if body.has_breasts:
+        renderer = _get_breast_renderer()
         breasts = root.add("🍼")
+        
         for r_idx, row in enumerate(body.breast_grid.rows):
             for c_idx, breast in enumerate(row):
                 label = body.breast_grid.get_label(r_idx, c_idx)
-                state_emoji = STATE_EMOJIS.get(getattr(breast, '_state', None), "○")
+                # Используем стили нового рендерера
+                state = breast.state
+                emoji, color, state_desc = renderer._get_state_style(state)
                 filled = getattr(breast, 'filled', 0) or 0
                 volume = getattr(breast, 'volume', 0) or 0
-                breasts.add(f"{state_emoji}{label}:{filled:.0f}/{volume:.0f}ml")
+                cup = breast.cup.name
+                breasts.add(f"[{color}]{emoji}[/]{label}:{cup} {filled:.0f}/{volume:.0f}ml")
     
     if body.has_penis or body.has_vagina:
         gen = root.add("🔞")

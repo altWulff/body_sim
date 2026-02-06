@@ -14,6 +14,7 @@ from body_sim.systems.insertion import (
     create_plug, create_tube, create_balloon, 
     create_beads, create_egg, create_vibrator
 )
+from body_sim.characters.roxy_migurdia import register_roxy_command
 
 console = Console()
 
@@ -395,5 +396,7 @@ def create_registry() -> CommandRegistry:
     # Genitals
     registry.register(Command("penetrate", ["pen"], "Penetrate orifice", "penetrate <target> <idx> [penis_idx]", cmd_penetration, "genitals"))
     registry.register(Command("ejaculate", ["ejac", "cum"], "Ejaculate", "ejaculate [penis_idx] [force]", cmd_ejaculate, "genitals"))
+    
+    register_roxy_command(registry)
 
     return registry
