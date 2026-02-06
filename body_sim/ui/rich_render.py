@@ -32,6 +32,7 @@ from body_sim.ui.breast_render import (
     BreastRenderer,
     render_breast_compact
 )
+from body_sim.ui.body_list_render import render_body_list
 
 console = Console()
 
@@ -255,45 +256,45 @@ def render_body_header(body) -> Panel:
     )
 
 
-def render_body_list(bodies: List, active_idx: int = 0) -> Panel:
-    """Компактный список тел."""
-    table = Table(show_header=False, box=box.SIMPLE, padding=(0, 1))
-    table.add_column("#", width=3)
-    table.add_column("Sex", width=3)
-    table.add_column("Name", width=12)
-    table.add_column("Type", width=5)
-    table.add_column("Gen", width=10)
-    table.add_column("Arousal", width=10)
+# def render_body_list(bodies: List, active_idx: int = 0) -> Panel:
+#     """Компактный список тел."""
+#     table = Table(show_header=False, box=box.SIMPLE, padding=(0, 1))
+#     table.add_column("#", width=3)
+#     table.add_column("Sex", width=3)
+#     table.add_column("Name", width=12)
+#     table.add_column("Type", width=5)
+#     table.add_column("Gen", width=10)
+#     table.add_column("Arousal", width=10)
     
-    for i, body in enumerate(bodies):
-        marker = ">" if i == active_idx else " "
-        sex_color = SEX_COLORS.get(body.sex, "white")
-        sex_emoji = SEX_EMOJIS.get(body.sex, "?")
-        type_emoji = BODY_TYPE_EMOJIS.get(body.body_type, "?")
+#     for i, body in enumerate(bodies):
+#         marker = ">" if i == active_idx else " "
+#         sex_color = SEX_COLORS.get(body.sex, "white")
+#         sex_emoji = SEX_EMOJIS.get(body.sex, "?")
+#         type_emoji = BODY_TYPE_EMOJIS.get(body.body_type, "?")
         
-        genitals = []
-        if body.has_penis:
-            erect = sum(1 for p in body.penises if getattr(p, 'is_erect', False))
-            genitals.append(f"P{len(body.penises)}{'🔥' if erect else ''}")
-        if body.has_vagina:
-            aroused = sum(1 for v in body.vaginas if getattr(v, 'is_aroused', False))
-            genitals.append(f"V{len(body.vaginas)}{'💧' if aroused else ''}")
-        if body.has_scrotum:
-            testicles = sum(len(s.testicles) for s in body.scrotums)
-            genitals.append(f"T{testicles}")
+#         genitals = []
+#         if body.has_penis:
+#             erect = sum(1 for p in body.penises if getattr(p, 'is_erect', False))
+#             genitals.append(f"P{len(body.penises)}{'🔥' if erect else ''}")
+#         if body.has_vagina:
+#             aroused = sum(1 for v in body.vaginas if getattr(v, 'is_aroused', False))
+#             genitals.append(f"V{len(body.vaginas)}{'💧' if aroused else ''}")
+#         if body.has_scrotum:
+#             testicles = sum(len(s.testicles) for s in body.scrotums)
+#             genitals.append(f"T{testicles}")
         
-        arousal_bar = make_compact_gradient_bar(body.stats.arousal, 1.0, width=6)
+#         arousal_bar = make_compact_gradient_bar(body.stats.arousal, 1.0, width=6)
         
-        table.add_row(
-            f"{marker}{i}",
-            f"[{sex_color}]{sex_emoji}[/{sex_color}]",
-            f"[{sex_color}]{body.name[:10]}[/{sex_color}]",
-            type_emoji,
-            ",".join(genitals) if genitals else "-",
-            arousal_bar
-        )
+#         table.add_row(
+#             f"{marker}{i}",
+#             f"[{sex_color}]{sex_emoji}[/{sex_color}]",
+#             f"[{sex_color}]{body.name[:10]}[/{sex_color}]",
+#             type_emoji,
+#             ",".join(genitals) if genitals else "-",
+#             arousal_bar
+#         )
     
-    return Panel(table, title="[bold]Bodies[/bold]", border_style="blue", box=box.SIMPLE)
+#     return Panel(table, title="[bold]Bodies[/bold]", border_style="blue", box=box.SIMPLE)
 
 
 # ======================
