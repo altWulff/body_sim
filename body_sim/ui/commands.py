@@ -8,14 +8,9 @@ from dataclasses import dataclass
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+from rich import box  # Импортируем box модули
 
-from body_sim.core.enums import FluidType, CupSize, InsertableType
-from body_sim.systems.insertion import (
-    create_plug, create_tube, create_balloon, 
-    create_beads, create_egg, create_vibrator
-)
 from body_sim.characters.roxy_migurdia import register_roxy_command
-from body_sim.characters.breast_reactions import get_reaction_system, register_reaction_commands
 
 console = Console()
 
@@ -36,11 +31,15 @@ class CommandRegistry:
         self.aliases: Dict[str, str] = {}
 
     def register(self, cmd: Command) -> None:
+        """Зарегистрировать команду."""
+        if not isinstance(cmd, Command):
+            raise TypeError(f"Expected Command, got {type(cmd)}")
         self.commands[cmd.name] = cmd
         for alias in cmd.aliases:
             self.aliases[alias] = cmd.name
 
     def get(self, name: str) -> Optional[Command]:
+        """Получить команду по имени или алиасу."""
         if name in self.commands:
             return self.commands[name]
         if name in self.aliases:
@@ -48,6 +47,7 @@ class CommandRegistry:
         return None
 
     def execute(self, line: str, context: 'CommandContext') -> bool:
+        """Выполнить команду."""
         parts = line.strip().split()
         if not parts:
             return False
@@ -62,12 +62,15 @@ class CommandRegistry:
                 return True
             except Exception as e:
                 console.print(f"[red]Error: {e}[/red]")
+                import traceback
+                console.print(f"[dim]{traceback.format_exc()}[/dim]")
                 return True
 
         return False
 
     def get_help(self, category: Optional[str] = None) -> Table:
-        table = Table(show_header=True, box="round")
+        """Получить таблицу помощи."""
+        table = Table(show_header=True, box=box.ROUNDED)
         table.add_column("Command", style="bold cyan")
         table.add_column("Aliases", style="dim")
         table.add_column("Usage")
@@ -88,6 +91,7 @@ class CommandContext:
     active_body_idx: int = 0
     running: bool = True
     last_result: Any = None
+    registry: 'CommandRegistry' = None  # Добавлено для доступа к реестру
 
     @property
     def active_body(self):
@@ -112,19 +116,23 @@ class CommandContext:
 
 def cmd_help(args: List[str], ctx: CommandContext):
     """Показать справку."""
-    registry = ctx.registry if hasattr(ctx, 'registry') else None
-    if registry:
-        console.print(Panel(registry.get_help(), title="[bold]Available Commands[/bold]"))
+    if ctx.registry:
+        console.print(Panel(ctx.registry.get_help(), title="[bold]Available Commands[/bold]"))
+    else:
+        console.print("[red]Registry not available[/red]")
+
 
 def cmd_quit(args: List[str], ctx: CommandContext):
     """Выйти из программы."""
     ctx.running = False
     console.print("[yellow]Goodbye![/yellow]")
 
+
 def cmd_list(args: List[str], ctx: CommandContext):
     """Список всех тел."""
     from .rich_render import render_body_list
     console.print(render_body_list(ctx.bodies, ctx.active_body_idx))
+
 
 def cmd_select(args: List[str], ctx: CommandContext):
     """Выбрать тело по индексу."""
@@ -134,28 +142,31 @@ def cmd_select(args: List[str], ctx: CommandContext):
     try:
         idx = int(args[0])
         ctx.select_body(idx)
-        console.print(f"[green]Selected body #{idx}: {ctx.active_body.name}[/green]")
+        console.print(f"[green]Selected body #{idx}: {ctx.active_body.name if ctx.active_body else 'none'}[/green]")
     except ValueError:
         console.print("[red]Invalid index[/red]")
+
 
 def cmd_next(args: List[str], ctx: CommandContext):
     """Следующее тело."""
     ctx.next_body()
-    console.print(f"[green]Switched to: {ctx.active_body.name}[/green]")
+    console.print(f"[green]Switched to: {ctx.active_body.name if ctx.active_body else 'none'}[/green]")
+
 
 def cmd_prev(args: List[str], ctx: CommandContext):
     """Предыдущее тело."""
     ctx.prev_body()
-    console.print(f"[green]Switched to: {ctx.active_body.name}[/green]")
+    console.print(f"[green]Switched to: {ctx.active_body.name if ctx.active_body else 'none'}[/green]")
+
 
 def cmd_show(args: List[str], ctx: CommandContext):
     """Показать детали активного тела."""
     from .rich_render import render_full_body
     if ctx.active_body:
         console.print(render_full_body(ctx.active_body))
-        
     else:
         console.print("[red]No body selected[/red]")
+
 
 def cmd_stimulate(args: List[str], ctx: CommandContext):
     """Стимулировать часть тела."""
@@ -178,6 +189,7 @@ def cmd_stimulate(args: List[str], ctx: CommandContext):
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
 
+
 def cmd_tick(args: List[str], ctx: CommandContext):
     """Обновить симуляцию."""
     dt = float(args[0]) if args else 1.0
@@ -186,6 +198,7 @@ def cmd_tick(args: List[str], ctx: CommandContext):
         body.tick(dt)
 
     console.print(f"[green]Ticked {len(ctx.bodies)} bodies (dt={dt})[/green]")
+
 
 def cmd_add_fluid(args: List[str], ctx: CommandContext):
     """Добавить жидкость в грудь."""
@@ -204,12 +217,14 @@ def cmd_add_fluid(args: List[str], ctx: CommandContext):
     col = int(args[3]) if len(args) > 3 else 0
 
     try:
+        from body_sim.core.enums import FluidType
         fluid_type = FluidType[fluid_name]
         breast = ctx.active_body.breast_grid.get(row, col)
         added = breast.add_fluid(fluid_type, amount)
         console.print(f"[cyan]Added {added:.1f}ml of {fluid_name} to breast [{row},{col}][/cyan]")
     except (KeyError, IndexError) as e:
         console.print(f"[red]Error: {e}[/red]")
+
 
 def cmd_drain(args: List[str], ctx: CommandContext):
     """Слить жидкость из груди."""
@@ -221,6 +236,7 @@ def cmd_drain(args: List[str], ctx: CommandContext):
     result = ctx.active_body.breast_grid.drain_all(percentage)
     console.print(f"[cyan]Drained {result['total_removed']:.1f}ml ({percentage}%)[/cyan]")
 
+
 def cmd_lactation(args: List[str], ctx: CommandContext):
     """Управление лактацией."""
     if not ctx.active_body or not ctx.active_body.has_breasts:
@@ -231,7 +247,7 @@ def cmd_lactation(args: List[str], ctx: CommandContext):
         # Показать статус
         for r_idx, row in enumerate(ctx.active_body.breast_grid.rows):
             for c_idx, breast in enumerate(row):
-                state = breast.lactation.state.name
+                state = breast.lactation.state.name if hasattr(breast.lactation.state, 'name') else str(breast.lactation.state)
                 console.print(f"[{r_idx},{c_idx}] Lactation: {state}")
         return
 
@@ -251,6 +267,7 @@ def cmd_lactation(args: List[str], ctx: CommandContext):
         breast.lactation.stimulate()
         console.print(f"[magenta]Stimulated lactation for breast [{row},{col}][/magenta]")
 
+
 def cmd_insert(args: List[str], ctx: CommandContext):
     """Вставить предмет в грудь."""
     if not ctx.active_body or not ctx.active_body.has_breasts:
@@ -268,6 +285,11 @@ def cmd_insert(args: List[str], ctx: CommandContext):
     diameter = float(args[3]) if len(args) > 3 else 1.0
 
     breast = ctx.active_body.breast_grid.get(row, col)
+
+    from body_sim.systems.insertion import (
+        create_plug, create_tube, create_balloon, 
+        create_beads, create_egg, create_vibrator
+    )
 
     creators = {
         "plug": create_plug,
@@ -295,6 +317,7 @@ def cmd_insert(args: List[str], ctx: CommandContext):
     else:
         console.print(f"[red]Failed to insert (max {breast.insertion_manager.max_objects} objects)[/red]")
 
+
 def cmd_remove(args: List[str], ctx: CommandContext):
     """Извлечь предмет из груди."""
     if not ctx.active_body or not ctx.active_body.has_breasts:
@@ -313,6 +336,7 @@ def cmd_remove(args: List[str], ctx: CommandContext):
     else:
         console.print(f"[red]No object at index {obj_idx}[/red]")
 
+
 def cmd_ejaculate(args: List[str], ctx: CommandContext):
     """Эякуляция."""
     if not ctx.active_body or not ctx.active_body.has_penis:
@@ -327,6 +351,7 @@ def cmd_ejaculate(args: List[str], ctx: CommandContext):
         console.print(f"[cyan]Ejaculated {result['amount']:.1f}ml from penis #{penis_idx}[/cyan]")
     else:
         console.print(f"[red]Ejaculation failed: {result.get('reason', 'unknown')}[/red]")
+
 
 def cmd_penetration(args: List[str], ctx: CommandContext):
     """Проникновение."""
@@ -349,6 +374,7 @@ def cmd_penetration(args: List[str], ctx: CommandContext):
     else:
         console.print(f"[red]Penetration failed[/red]")
 
+
 def cmd_create_body(args: List[str], ctx: CommandContext):
     """Создать новое тело."""
     from body_sim.body.factory import BodyFactory
@@ -368,9 +394,25 @@ def cmd_create_body(args: List[str], ctx: CommandContext):
         console.print(f"[red]Error creating body: {e}[/red]")
 
 
+def cmd_create_roxy(args: List[str], ctx: CommandContext):
+    """Создать Рокси Мигурдию."""
+    try:
+        from body_sim.characters.roxy_migurdia import create_roxy
+        roxy = create_roxy()
+        ctx.bodies.append(roxy)
+        console.print(f"[bold cyan]Created {roxy.name} - Migurdian Mage![/bold cyan]")
+        console.print(f"[dim]{roxy.character_info['age_real']} years old, appears {roxy.character_info['age_appearance']}[/dim]")
+        console.print(f"[blue]Hair:[/blue] Blue | [red]Eyes:[/red] Achromatic crimson | [magenta]Chest:[/magenta] {roxy.breast_cup}-cup")
+    except Exception as e:
+        console.print(f"[red]Error creating Roxy: {e}[/red]")
+        import traceback
+        console.print(f"[dim]{traceback.format_exc()}[/dim]")
+
+
 # ============ Создание реестра команд ============
 
 def create_registry() -> CommandRegistry:
+    """Создать и настроить реестр команд."""
     registry = CommandRegistry()
 
     # General
@@ -383,6 +425,7 @@ def create_registry() -> CommandRegistry:
     registry.register(Command("show", ["s", "status"], "Show body details", "show", cmd_show, "general"))
     registry.register(Command("tick", ["t", "update"], "Update simulation", "tick [dt]", cmd_tick, "general"))
     registry.register(Command("create", ["new"], "Create new body", "create <type> [name]", cmd_create_body, "general"))
+    registry.register(Command("roxy", ["migurdia"], "Create Roxy Migurdia", "roxy", cmd_create_roxy, "characters"))
 
     # Stimulation
     registry.register(Command("stimulate", ["stim"], "Stimulate body part", "stimulate <region> [idx] [intensity]", cmd_stimulate, "stimulation"))
@@ -397,8 +440,16 @@ def create_registry() -> CommandRegistry:
     # Genitals
     registry.register(Command("penetrate", ["pen"], "Penetrate orifice", "penetrate <target> <idx> [penis_idx]", cmd_penetration, "genitals"))
     registry.register(Command("ejaculate", ["ejac", "cum"], "Ejaculate", "ejaculate [penis_idx] [force]", cmd_ejaculate, "genitals"))
-    
+
     register_roxy_command(registry)
-    register_reaction_commands(registry, get_reaction_system())
+    # Реакции (если доступны)
+    try:
+        from body_sim.characters.breast_reactions import get_reaction_system, register_reaction_commands
+        register_reaction_commands(registry, get_reaction_system())
+        console.print("[dim]Reaction commands loaded[/dim]")
+    except ImportError as e:
+        console.print(f"[dim]Reaction commands not available: {e}[/dim]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to load reaction commands: {e}[/yellow]")
 
     return registry

@@ -14,7 +14,6 @@ from rich.prompt import Prompt
 from rich.text import Text
 
 from body_sim.ui.commands import CommandContext, create_registry
-from body_sim.ui.rich_render import render_body_list, render_full_body
 
 console = Console()
 
@@ -22,8 +21,7 @@ console = Console()
 def run_console(bodies: List):
     """Запустить интерактивную консоль."""
     registry = create_registry()
-    ctx = CommandContext(bodies=bodies)
-    ctx.registry = registry  # Добавляем реестр в контекст
+    ctx = CommandContext(bodies=bodies, registry=registry)  # Передаём registry здесь
 
     console.print(Panel.fit(
         "[bold cyan]Breast & Body Simulation Console[/bold cyan]\n"
@@ -33,6 +31,7 @@ def run_console(bodies: List):
 
     if bodies:
         console.print(f"[green]Loaded {len(bodies)} bodies[/green]")
+        from body_sim.ui.rich_render import render_body_list
         console.print(render_body_list(bodies, ctx.active_body_idx))
 
     while ctx.running:
@@ -61,6 +60,8 @@ def run_console(bodies: List):
             break
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
+            import traceback
+            console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
     console.print("[dim]Console closed[/dim]")
 
@@ -68,8 +69,7 @@ def run_console(bodies: List):
 def run_live_console(bodies: List, refresh_rate: float = 1.0):
     """Запустить консоль с live-обновлением экрана."""
     registry = create_registry()
-    ctx = CommandContext(bodies=bodies)
-    ctx.registry = registry
+    ctx = CommandContext(bodies=bodies, registry=registry)  # Передаём registry здесь
 
     layout = Layout()
     layout.split_column(
@@ -79,6 +79,8 @@ def run_live_console(bodies: List, refresh_rate: float = 1.0):
     )
 
     def update_layout():
+        from body_sim.ui.rich_render import render_body_list, render_full_body
+        
         header = Text("Breast & Body Simulation", justify="center", style="bold cyan")
         layout["header"].update(Panel(header, border_style="cyan"))
 
