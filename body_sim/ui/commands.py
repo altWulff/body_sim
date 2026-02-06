@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich import box  # Импортируем box модули
+from rich import box
 
+from body_sim.core.enums import UterusState
 from body_sim.characters.roxy_migurdia import register_roxy_command
 
 console = Console()
@@ -409,6 +410,316 @@ def cmd_create_roxy(args: List[str], ctx: CommandContext):
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
 
+
+
+def cmd_uterus(args: List[str], ctx: CommandContext):
+    """Управление маткой (uterus)."""
+    if not ctx.active_body:
+        console.print("[red]No body selected[/red]")
+        return
+
+    if not hasattr(ctx.active_body, 'uterus_system') or not ctx.active_body.uterus_system:
+        console.print("[red]No uterus available[/red]")
+        return
+
+    system = ctx.active_body.uterus_system
+
+    if not args:
+        # Показать статус
+        from body_sim.ui.uterus_render import UterusRenderer
+        renderer = UterusRenderer()
+        console.print(renderer.render_full_system(system))
+        return
+
+    action = args[0].lower()
+    uterus_idx = int(args[1]) if len(args) > 1 else 0
+
+    if uterus_idx >= len(system.uteri):
+        console.print(f"[red]Invalid uterus index: {uterus_idx}[/red]")
+        return
+
+    uterus = system.uteri[uterus_idx]
+
+    if action == "status":
+        from body_sim.ui.uterus_render import UterusRenderer
+        renderer = UterusRenderer()
+        console.print(renderer.render_uterus_detailed(uterus, f"Uterus #{uterus_idx}"))
+
+    elif action == "add_fluid":
+        if len(args) < 3:
+            console.print("[red]Usage: uterus add_fluid <type> <amount> [idx][/red]")
+            return
+        from body_sim.core.enums import FluidType
+        fluid_type = FluidType[args[1].upper()]
+        amount = float(args[2])
+        added = uterus.add_fluid(fluid_type, amount)
+        console.print(f"[cyan]Added {added:.1f}ml of {args[1].upper()} to uterus #{uterus_idx}[/cyan]")
+
+    elif action == "drain":
+        removed = uterus.remove_fluid()
+        total = sum(removed.values())
+        console.print(f"[yellow]Drained {total:.1f}ml from uterus #{uterus_idx}[/yellow]")
+
+    elif action == "dilate":
+        amount = float(args[1]) if len(args) > 1 else 1.0
+        uterus.cervix.dilate(amount)
+        console.print(f"[magenta]Dilated cervix to {uterus.cervix.current_dilation:.1f}cm[/magenta]")
+
+    elif action == "contract":
+        uterus.cervix.contract()
+        console.print("[green]Cervix contracted[/green]")
+
+    elif action == "strain":
+        force = float(args[1]) if len(args) > 1 else 0.5
+        result = uterus.apply_strain(force)
+        if result:
+            console.print(f"[red]⚠️ Prolapse progressed! State: {uterus.state.name}[/red]")
+        else:
+            console.print("[green]Strain applied, no prolapse[/green]")
+
+    elif action == "evert":
+        if uterus.state.value != UterusState.EVERTED:
+            uterus._complete_eversion()
+            console.print(f"[bold red]🔴 UTERUS EVERTED! All contents ejected.[/bold red]")
+        else:
+            console.print("[yellow]Already everted[/yellow]")
+
+    elif action == "reduce":
+        amount = float(args[1]) if len(args) > 1 else 0.5
+        success = uterus.reduce_prolapse(amount)
+        if success:
+            console.print(f"[green]Prolapse reduced. State: {uterus.state.name}[/green]")
+        else:
+            console.print("[red]Failed to reduce - requires medical intervention[/red]")
+
+    elif action == "invert":
+        force = float(args[1]) if len(args) > 1 else 1.0
+        success = uterus.invert(force)
+        if success:
+            console.print(f"[red]Uterus inverted! Tube openings visible internally.[/red]")
+        else:
+            console.print("[red]Cannot invert - uterus not in normal state[/red]")
+
+    elif action == "insert":
+        if len(args) < 2:
+            console.print("[red]Usage: uterus insert <object_type> [idx][/red]")
+            return
+        obj_type = args[1].lower()
+        # Создаем простой объект для вставки
+        class SimpleObject:
+            def __init__(self, name, volume, diameter):
+                self.name = name
+                self.volume = volume
+                self.effective_volume = volume
+                self.diameter = diameter
+                self.is_inserted = False
+
+        objects = {
+            "egg": SimpleObject("Egg", 5.0, 2.0),
+            "ball": SimpleObject("Ball", 10.0, 3.0),
+            "beads": SimpleObject("Beads", 15.0, 2.5),
+            "speculum": SimpleObject("Speculum", 20.0, 4.0),
+        }
+
+        if obj_type not in objects:
+            console.print(f"[red]Unknown object: {obj_type}[/red]")
+            return
+
+        obj = objects[obj_type]
+        success = uterus.insert_object(obj)
+        if success:
+            console.print(f"[green]Inserted {obj.name} into uterus #{uterus_idx}[/green]")
+        else:
+            console.print("[red]Failed to insert - cervix closed or no space[/red]")
+
+    elif action == "remove":
+        idx = int(args[1]) if len(args) > 1 else 0
+        obj = uterus.remove_object(idx)
+        if obj:
+            console.print(f"[green]Removed {obj.name} from uterus[/green]")
+        else:
+            console.print("[red]No object at that index[/red]")
+
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        console.print("Actions: status, add_fluid, drain, dilate, contract, strain, evert, reduce, invert, insert, remove")
+
+
+def cmd_ovary(args: List[str], ctx: CommandContext):
+    """Управление яичниками (ovaries)."""
+    if not ctx.active_body:
+        console.print("[red]No body selected[/red]")
+        return
+
+    if not hasattr(ctx.active_body, 'uterus_system') or not ctx.active_body.uterus_system:
+        console.print("[red]No uterus system available[/red]")
+        return
+
+    system = ctx.active_body.uterus_system
+
+    if not args:
+        # Показать все яичники
+        from body_sim.ui.ovary_tube_render import OvaryTubeRenderer
+        renderer = OvaryTubeRenderer()
+
+        for uterus in system.uteri:
+            for ovary in uterus.ovaries:
+                if ovary:
+                    console.print(renderer.render_ovary_detailed(ovary))
+        return
+
+    action = args[0].lower()
+    side = args[1].lower() if len(args) > 1 else "left"
+    uterus_idx = int(args[2]) if len(args) > 2 else 0
+
+    if uterus_idx >= len(system.uteri):
+        console.print(f"[red]Invalid uterus index[/red]")
+        return
+
+    uterus = system.uteri[uterus_idx]
+    ovary = uterus.left_ovary if side == "left" else uterus.right_ovary
+
+    if not ovary:
+        console.print(f"[red]No {side} ovary found[/red]")
+        return
+
+    if action == "status":
+        from body_sim.ui.ovary_tube_render import OvaryTubeRenderer
+        renderer = OvaryTubeRenderer()
+        console.print(renderer.render_ovary_detailed(ovary))
+
+    elif action == "enlarge":
+        amount = float(args[2]) if len(args) > 2 else 0.3
+        ovary.enlarge_follicles(amount)
+        console.print(f"[yellow]Follicles enlarged on {side} ovary[/yellow]")
+
+    elif action == "rupture":
+        idx = int(args[2]) if len(args) > 2 else 0
+        success = ovary.rupture_follicle(idx)
+        if success:
+            console.print(f"[magenta]Follicle {idx} ruptured! Ovulation occurred.[/magenta]")
+        else:
+            console.print("[red]Failed to rupture follicle[/red]")
+
+    elif action == "evert":
+        degree = float(args[2]) if len(args) > 2 else 1.0
+        ovary.evert(degree)
+        console.print(f"[bold red]🔴 {side.upper()} OVARY EVERTED![/bold red]")
+        console.print(f"[red]Visible externally: {ovary.external_description}[/red]")
+
+    elif action == "reposition":
+        amount = float(args[2]) if len(args) > 2 else 0.5
+        success = ovary.reposition(amount)
+        if success:
+            console.print(f"[green]{side} ovary repositioned. State: {ovary.state.name}[/green]")
+        else:
+            console.print("[red]Failed to reposition - requires stronger intervention[/red]")
+
+    elif action == "ovulate":
+        follicle_idx = int(args[2]) if len(args) > 2 else -1
+        success = uterus.ovulate(side, follicle_idx)
+        if success:
+            if ovary.is_everted:
+                console.print(f"[red]⚠️ External ovulation from {side} ovary![/red]")
+            else:
+                console.print(f"[cyan]Ovulation from {side} ovary - egg in fallopian tube[/cyan]")
+        else:
+            console.print("[red]Ovulation failed[/red]")
+
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        console.print("Actions: status, enlarge, rupture, evert, reposition, ovulate")
+
+
+def cmd_tube(args: List[str], ctx: CommandContext):
+    """Управление фаллопиевыми трубами (fallopian tubes)."""
+    if not ctx.active_body:
+        console.print("[red]No body selected[/red]")
+        return
+
+    if not hasattr(ctx.active_body, 'uterus_system') or not ctx.active_body.uterus_system:
+        console.print("[red]No uterus system available[/red]")
+        return
+
+    system = ctx.active_body.uterus_system
+
+    if not args:
+        # Показать все трубы
+        from body_sim.ui.ovary_tube_render import OvaryTubeRenderer
+        renderer = OvaryTubeRenderer()
+
+        for uterus in system.uteri:
+            for tube in uterus.tubes:
+                if tube:
+                    console.print(renderer.render_tube_detailed(tube))
+        return
+
+    action = args[0].lower()
+    side = args[1].lower() if len(args) > 1 else "left"
+    uterus_idx = int(args[2]) if len(args) > 2 else 0
+
+    if uterus_idx >= len(system.uteri):
+        console.print(f"[red]Invalid uterus index[/red]")
+        return
+
+    uterus = system.uteri[uterus_idx]
+    tube = uterus.left_tube if side == "left" else uterus.right_tube
+
+    if not tube:
+        console.print(f"[red]No {side} tube found[/red]")
+        return
+
+    if action == "status":
+        from body_sim.ui.ovary_tube_render import OvaryTubeRenderer
+        renderer = OvaryTubeRenderer()
+        console.print(renderer.render_tube_detailed(tube))
+
+    elif action == "stretch":
+        ratio = float(args[2]) if len(args) > 2 else 2.0
+        success = tube.stretch(ratio)
+        if success:
+            console.print(f"[yellow]{side} tube stretched to ×{ratio:.1f}[/yellow]")
+            if tube.can_prolapse_ovary:
+                console.print("[red]⚠️ Ovary can now prolapse through this tube![/red]")
+        else:
+            console.print("[red]Tube blocked due to overstretching![/red]")
+
+    elif action == "evert":
+        if not tube.ovary:
+            console.print("[red]No ovary attached to this tube[/red]")
+            return
+
+        if not uterus.tube_openings_visible:
+            console.print("[red]Tube openings not visible - requires uterus inversion/eversion[/red]")
+            return
+
+        if tube.current_stretch < 2.0:
+            console.print("[red]Tube not stretched enough (need 2.0x)[/red]")
+            return
+
+        tube.evert_with_ovary()
+        console.print(f"[bold red]🔴 {side.upper()} TUBE EVERTED WITH OVARY![/bold red]")
+        console.print(f"[red]External opening visible: {tube.external_description}[/red]")
+
+    elif action == "reposition":
+        tube.reposition()
+        console.print(f"[green]{side} tube repositioned[/green]")
+
+    elif action == "add_fluid":
+        amount = float(args[2]) if len(args) > 2 else 5.0
+        tube.contained_fluid += amount
+        console.print(f"[cyan]Added {amount:.1f}ml fluid to {side} tube[/cyan]")
+
+    elif action == "clear":
+        tube.contained_fluid = 0.0
+        tube.contained_ovum = None
+        console.print(f"[yellow]{side} tube cleared[/yellow]")
+
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        console.print("Actions: status, stretch, evert, reposition, add_fluid, clear")
+
+
 # ============ Создание реестра команд ============
 
 def create_registry() -> CommandRegistry:
@@ -440,6 +751,15 @@ def create_registry() -> CommandRegistry:
     # Genitals
     registry.register(Command("penetrate", ["pen"], "Penetrate orifice", "penetrate <target> <idx> [penis_idx]", cmd_penetration, "genitals"))
     registry.register(Command("ejaculate", ["ejac", "cum"], "Ejaculate", "ejaculate [penis_idx] [force]", cmd_ejaculate, "genitals"))
+    # Uterus
+    registry.register(Command("uterus", ["ut", "womb"], "Uterus management", "uterus [action] [args...]", cmd_uterus, "uterus"))
+
+    # Ovaries
+    registry.register(Command("ovary", ["ov", "ovaries"], "Ovary management", "ovary [action] [side] [args...]", cmd_ovary, "uterus"))
+
+    # Fallopian tubes
+    registry.register(Command("tube", ["ft", "tubes"], "Fallopian tube management", "tube [action] [side] [args...]", cmd_tube, "uterus"))
+
 
     register_roxy_command(registry)
     # Реакции (если доступны)
