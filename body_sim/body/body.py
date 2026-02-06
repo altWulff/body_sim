@@ -302,7 +302,6 @@ class Body:
 @dataclass 
 class MaleBody(Body):
     sex: Sex = field(default=Sex.MALE, init=False)
-    
     penis_count: int = 1
     penis_size: float = 15.0
     penis_girth: float = 12.0
@@ -333,7 +332,7 @@ class MaleBody(Body):
         nipple = Nipple(base_length=0.3, base_width=0.5, color=Color.LIGHT_PINK)
         areola = Areola(base_diameter=2.5, nipples=[nipple], color=Color.LIGHT_PINK)
         breast = Breast(cup=CupSize.FLAT, areola=areola, base_elasticity=1.2)
-        self.breast_grid = BreastGrid(rows=[[breast]], labels=[["chest"]])
+        self.breast_grid = BreastGrid(rows=[[breast, breast]], labels=[["chest", "chest"]])
 
     def _setup_uterus(self):
         """Мужское тело не имеет матки."""
