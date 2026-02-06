@@ -434,3 +434,21 @@ class EventType(Enum):
     NUMBNESS = auto()
     SQUIRT = auto()
     PROLAPSE_RISK = auto()
+
+
+class BreastEventType(Enum):
+    """Типы событий груди для реакций."""
+    START_LEAKING = auto()          # Начало утечки
+    STOP_LEAKING = auto()           # Остановка утечки
+    OVERPRESSURED = auto()          # Критическое давление
+    ENGORGED = auto()               # Переполнение молоком
+    CUP_INCREASE = auto()           # Увеличение размера
+    CUP_DECREASE = auto()           # Уменьшение размера
+    HIGH_SAG = auto()               # Сильное провисание
+    INSERTION_START = auto()        # Начало вставки предмета
+    INSERTION_DEEP = auto()         # Глубокая вставка
+    LACTATION_START = auto()        # Начало лактации
+    LACTATION_PEAK = auto()         # Пик лактации
+    NIPPLE_STRETCH = auto()         # Растяжение соска
+    NIPPLE_GAPING = auto()          # Раскрытие соска
+    INFLATION_MAX = auto()          # Максимальное растяжение
