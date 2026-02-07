@@ -306,15 +306,25 @@ class VaginaState(Enum):
     STRETCHED = auto()
     CERVIX_DILATED = auto()
 
-
 class UterusState(Enum):
-    """Состояния матки."""
-    NORMAL = auto()           # Нормальное состояние
-    DESCENDED = auto()        # Опущена (начало пролапса)
-    PROLAPSED = auto()        # Пролапс (частичное выворачивание)
-    EVERTED = auto()          # Полное выворачивание наизнанку
-    INVERTED = auto()         # Инверсия (внутрь)
+    EMPTY = auto()
+    NORMAL = auto()
+    TENSE = auto()
+    OVERPRESSURED = auto()
+    LEAKING = auto()
+    DESCENDED = auto()
+    PROLAPSED = auto()
+    EVERTED = auto()
+    INVERTED = auto()
 
+class UterusInflationStatus(Enum):
+    """Статусы инфляции матки."""
+    NORMAL = "normal"              # Нормальное состояние
+    STRETCHED = "stretched"        # Растянута
+    DISTENDED = "distended"        # Выпучена
+    HYPERDISTENDED = "hyper"       # Сильно выпучена
+    RUPTURE_RISK = "rupture_risk"  # Риск разрыва
+    RUPTURED = "ruptured"      
 
 class CervixState(Enum):
     """Состояния шейки матки."""

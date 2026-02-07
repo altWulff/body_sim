@@ -1,23 +1,31 @@
 # body_sim/anatomy/uterus.py
 """
-Матка (uterus/womb) с системой пролапса.
+Матка (uterus/womb) с системой инфляции и распределением жидкости.
+
+Особенности:
+- Инфляция как у груди с растяжением стенок
+- Распределение жидкости по фаллопиевым трубам к яичникам
+- Статусы инфляции (NORMAL, STRETCHED, DISTENDED, HYPERDISTENDED, RUPTURE_RISK)
+- Обратное течение жидкости из труб при переполнении
 """
 
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Callable, Tuple
-from enum import Enum, auto
 import math
 
+#
 from body_sim.core.enums import (
     FluidType, 
     Sex, 
     UterusState, 
+    UterusInflationStatus,
     CervixState, 
     OvaryState, 
     FallopianTubeState
 )
-from body_sim.core.fluids import BreastFluid
 
+from body_sim.core.fluids import FluidMixture, BreastFluid, FLUID_DEFS
+from body_sim.core.constants import PRESSURE_LEAK_MIN
 
 
 @dataclass
@@ -27,409 +35,511 @@ class UterineWall:
     elasticity: float = 1.0          # 0-1 (эластичность)
     integrity: float = 1.0           # 0-1 (целостность тканей)
     stretch_ratio: float = 1.0       # текущее растяжение
-    
-    # Усталость тканей от растяжения
-    fatigue: float = 0.0             # 0-1
-    
+    fatigue: float = 0.0             # 0-1 (усталость)
+
+    # Для инфляции
+    plasticity: float = 0.3          # Пластичность (0-1)
+    peak_stretch: float = 1.0        # Пиковое растяжение
+    is_permanently_stretched: bool = False
+
     def can_stretch(self, target_ratio: float) -> bool:
         """Может ли растянуться до целевого соотношения."""
-        max_stretch = 3.0 * self.elasticity * self.integrity
+        max_stretch = 4.0 * self.elasticity * self.integrity
         return target_ratio <= max_stretch
-    
+
     def stretch(self, ratio: float) -> bool:
         """Попытка растяжения."""
         if not self.can_stretch(ratio):
-            self.integrity -= 0.1  # Повреждение при перерастяжении
+            self.integrity -= 0.1
             return False
-        
+
         self.stretch_ratio = ratio
+        self.peak_stretch = max(self.peak_stretch, ratio)
         self.fatigue += (ratio - 1.0) * 0.1
         self.fatigue = min(1.0, self.fatigue)
+
+        if ratio >= 3.5:
+            self.is_permanently_stretched = True
+
         return True
-    
+
     def recover(self, dt: float):
-        """Восстановление."""
+        """Восстановление с учётом пластичности."""
         self.fatigue = max(0.0, self.fatigue - 0.01 * dt)
+
         if self.stretch_ratio > 1.0:
+            # Эластичное восстановление
+            elastic_part = (self.stretch_ratio - 1.0) * (1.0 - self.plasticity)
+            plastic_part = (self.stretch_ratio - 1.0) * self.plasticity
+
             recovery = 0.001 * self.elasticity * dt
-            self.stretch_ratio = max(1.0, self.stretch_ratio - recovery)
+            new_elastic = max(0, elastic_part - recovery)
+
+            self.stretch_ratio = 1.0 + plastic_part + new_elastic
+
+    def get_skin_tension(self) -> float:
+        """Натяжение кожи (0-1)."""
+        if self.stretch_ratio <= 1.0:
+            return 0.0
+        return min(1.0, (self.stretch_ratio - 1.0) / 3.0)
+
+    def get_stretch_marks_risk(self) -> float:
+        """Риск растяжек."""
+        tension = self.get_skin_tension()
+        return tension * tension * (1.0 - self.elasticity)
 
 
 @dataclass
 class Cervix:
-    """Шейка матки."""
+    """Шейка матки - "сосок" матки через который происходит утечка."""
     length: float = 3.0              # см (длина)
     diameter: float = 2.5            # см (диаметр отверстия)
     max_dilation: float = 10.0       # см (максимальное раскрытие)
-    
+
     state: CervixState = field(default=CervixState.CLOSED)
     current_dilation: float = 0.0    # текущее раскрытие
-    
-    # Связь с влагалищем
+
+    # Параметры как у соска - для механики утечки
+    base_dilation: float = 0.1       # базовое раскрытие
+    gape_diameter: float = 0.0       # текущее отверстие
+    max_gape: float = field(init=False)
+
+    # Инфляция шейки
+    inflation_ratio: float = 1.0     # Коэффициент инфляции
+
     vaginal_connection: Optional[Any] = field(default=None, repr=False)
-    
+
+    def __post_init__(self):
+        self.max_gape = self.max_dilation * 0.9
+        self.gape_diameter = self.base_dilation
+
     def dilate(self, amount: float) -> bool:
         """Растворение шейки."""
         new_dilation = min(self.current_dilation + amount, self.max_dilation)
-        
+
         if new_dilation > self.diameter * 0.5:
             self.state = CervixState.DILATED
         if new_dilation >= self.diameter * 2:
             self.state = CervixState.FULLY_OPEN
-            
+
         self.current_dilation = new_dilation
+        self.gape_diameter = max(self.base_dilation, new_dilation)
         return True
-    
+
     def contract(self):
         """Сокращение."""
         self.current_dilation = max(0.0, self.current_dilation - 0.5)
+        self.gape_diameter = max(self.base_dilation, self.current_dilation)
         if self.current_dilation < 0.5:
             self.state = CervixState.CLOSED
-    
+
+    def inflate(self, ratio: float):
+        """Инфляция шейки (растяжение)."""
+        self.inflation_ratio = max(1.0, min(ratio, 3.0))
+        self.diameter *= self.inflation_ratio
+        self.max_dilation *= self.inflation_ratio
+
     @property
     def is_open(self) -> bool:
-        """Открыта ли шейка."""
-        return self.current_dilation > 0.5
-    
+        """Открыта ли шейка (для утечки)."""
+        return self.gape_diameter > self.base_dilation * 1.5
+
+    @property
+    def effective_gape(self) -> float:
+        """Эффективное отверстие для расчёта утечки."""
+        if not self.is_open:
+            return 0.0
+        openness = self.gape_diameter / self.diameter
+        return self.gape_diameter * openness
+
     @property
     def effective_diameter(self) -> float:
         """Эффективный диаметр прохода."""
         if self.state == CervixState.EVERTED:
-            return self.max_dilation * 2  # При выворачивании проход максимален
+            return self.max_dilation * 2
         return self.current_dilation
 
 
 @dataclass
 class Ovary:
-    """
-    Яичник с фолликулами и яйцеклетками.
-    При выворачивании может быть вытолкнут наружу через фаллопиеву трубу.
-    """
+    """Яичник с фолликулами и системой наполнения."""
     name: str = "ovary"
-    side: str = "left"               # 'left' или 'right'
-    
-    # Размеры
-    length: float = 3.0              # см
-    width: float = 2.0               # см
-    thickness: float = 1.5           # см
-    
-    # Состояние
+    side: str = "left"
+
+    length: float = 3.0
+    width: float = 2.0
+    thickness: float = 1.5
+
+    # Объёмы
+    base_volume: float = field(init=False)
+    max_volume: float = field(init=False)
+
     state: OvaryState = field(default=OvaryState.NORMAL)
-    
-    # Фолликулы
-    follicle_count: int = 5          # Количество фолликулов
-    follicle_sizes: List[float] = field(default_factory=lambda: [0.5]*5)  # см
-    
-    # Физиология
-    hormone_production: float = 1.0  # 0-1 (уровень гормонов)
-    blood_supply: float = 1.0        # 0-1 (кровоснабжение)
-    
-    # Положение (0 = норма, 1 = полностью вывернут)
+
+    follicle_count: int = 5
+    follicle_sizes: List[float] = field(default_factory=lambda: [0.5]*5)
+
+    hormone_production: float = 1.0
+    blood_supply: float = 1.0
+
+    # Жидкость в яичнике (при инфляции труб)
+    fluid_content: float = 0.0
+    max_fluid_capacity: float = 20.0  # мл
+
     prolapse_degree: float = 0.0
-    
-    # Связь с трубой
     attached_tube: Optional['FallopianTube'] = field(default=None, repr=False)
-    
-    # Содержимое при выворачивании
     ruptured_follicles: int = 0
-    
+
+    def __post_init__(self):
+        self.base_volume = self.calculate_volume()
+        self.max_volume = self.base_volume * 2.0
+
     def calculate_volume(self) -> float:
-        """Объём яичника (мл)."""
         return self.length * self.width * self.thickness * 0.8
-    
+
+    def add_fluid(self, amount: float) -> float:
+        """Добавить жидкость в яичник (через трубу)."""
+        available = self.max_fluid_capacity - self.fluid_content
+        actual = min(amount, available)
+        self.fluid_content += actual
+
+        # При переполнении - увеличение размера
+        if self.fluid_content > self.max_fluid_capacity * 0.8:
+            self.enlarge_follicles(0.1)
+
+        return actual
+
+    def remove_fluid(self, amount: float) -> float:
+        """Удалить жидкость из яичника."""
+        actual = min(amount, self.fluid_content)
+        self.fluid_content -= actual
+        return actual
+
     def enlarge_follicles(self, amount: float):
-        """Увеличить фолликулы (овуляция/кисты)."""
         for i in range(len(self.follicle_sizes)):
             self.follicle_sizes[i] = min(2.5, self.follicle_sizes[i] + amount)
-        
-        max_size = max(self.follicle_sizes)
-        if max_size > 1.5:
+        if max(self.follicle_sizes) > 1.5:
             self.state = OvaryState.ENLARGED
-    
+
     def rupture_follicle(self, index: int) -> bool:
-        """Разрыв фолликула (овуляция)."""
         if 0 <= index < len(self.follicle_sizes):
             if self.follicle_sizes[index] > 1.0:
-                self.follicle_sizes[index] = 0.3  # Уменьшается после разрыва
+                self.follicle_sizes[index] = 0.3
                 self.ruptured_follicles += 1
                 return True
         return False
-    
+
     def evert(self, degree: float = 1.0):
-        """Вывернуть яичник наружу."""
         self.prolapse_degree = min(1.0, self.prolapse_degree + degree)
         if self.prolapse_degree > 0.7:
             self.state = OvaryState.EVERTED
         elif self.prolapse_degree > 0.3:
             self.state = OvaryState.PROLAPSED
-    
+
     def reposition(self, amount: float = 0.5) -> bool:
-        """Вправить яичник."""
         if self.state == OvaryState.EVERTED and amount < 0.7:
-            return False  # Требуется сильное вмешательство
-        
+            return False
         self.prolapse_degree = max(0.0, self.prolapse_degree - amount)
         if self.prolapse_degree < 0.2:
             self.state = OvaryState.NORMAL
         elif self.prolapse_degree < 0.5:
             self.state = OvaryState.PROLAPSED
         return True
-    
+
     @property
     def is_everted(self) -> bool:
-        """Полностью ли вывернут."""
         return self.state == OvaryState.EVERTED
-    
+
     @property
     def visible_externally(self) -> bool:
-        """Виден ли снаружи."""
         return self.prolapse_degree > 0.5
-    
+
+    @property
+    def total_volume(self) -> float:
+        """Общий объём с учётом жидкости."""
+        return self.calculate_volume() + self.fluid_content
+
     @property
     def external_description(self) -> str:
-        """Описание внешнего вида при выворачивании."""
         if not self.visible_externally:
             return ""
-        
         desc = [f"{self.side.upper()} OVARY EXPOSED"]
-        
-        # Описание фолликулов на поверхности
         visible_follicles = [f"{s:.1f}cm" for s in self.follicle_sizes if s > 0.8]
         if visible_follicles:
             desc.append(f"Follicles: {', '.join(visible_follicles)}")
-        
         if self.ruptured_follicles > 0:
             desc.append(f"Ruptured: {self.ruptured_follicles}")
-        
+        if self.fluid_content > 0:
+            desc.append(f"Fluid: {self.fluid_content:.1f}ml")
         if self.blood_supply < 0.5:
             desc.append("⚠️ ISCHEMIC")
-        
         return " | ".join(desc)
-    
-    def __str__(self) -> str:
-        state_emoji = {
-            OvaryState.NORMAL: "🟢",
-            OvaryState.ENLARGED: "🟡",
-            OvaryState.PROLAPSED: "🟠",
-            OvaryState.EVERTED: "🔴",
-            OvaryState.TORSION: "⚫"
-        }.get(self.state, "⚪")
-        
-        if self.is_everted:
-            return (
-                f"{state_emoji} Ovary ({self.side}) [{self.state.name}]\n"
-                f"   🔴 EXTERNALLY VISIBLE - {self.external_description}\n"
-                f"   Prolapse: {self.prolapse_degree:.0%}, "
-                f"Volume: {self.calculate_volume():.1f}ml"
-            )
-        
-        return (
-            f"{state_emoji} Ovary ({self.side}) [{self.state.name}]\n"
-            f"   Size: {self.length}×{self.width}×{self.thickness}cm, "
-            f"Follicles: {self.follicle_count}\n"
-            f"   Hormones: {self.hormone_production:.0%}, "
-            f"Blood supply: {self.blood_supply:.0%}"
-        )
 
 
 @dataclass
 class FallopianTube:
-    """
-    Фаллопиева труба соединяет матку с яичником.
-    При инверсии матки отверстие трубы видно снаружи.
-    """
+    """Фаллопиева труба с системой инфляции и транспорта жидкости."""
     name: str = "fallopian_tube"
-    side: str = "left"               # 'left' или 'right'
-    
-    # Размеры
-    length: float = 10.0             # см (длина)
-    diameter: float = 0.3            # см (диаметр)
-    uterine_opening: float = 0.1     # см (отверстие в матке)
-    ovarian_opening: float = 0.5     # см (отверстие к яичнику - фимбрии)
-    
-    # Состояние
+    side: str = "left"
+
+    # Базовые размеры
+    base_length: float = 10.0
+    base_diameter: float = 0.3
+    uterine_opening: float = 0.1
+    ovarian_opening: float = 0.5
+
+    # Текущие размеры (с учётом инфляции)
+    current_length: float = field(init=False)
+    current_diameter: float = field(init=False)
+
     state: FallopianTubeState = field(default=FallopianTubeState.NORMAL)
-    
-    # Эластичность
-    elasticity: float = 1.0          # 0-1
-    max_stretch_ratio: float = 3.0   # максимальное растяжение
-    
-    # Текущее растяжение
+    elasticity: float = 1.0
+    max_stretch_ratio: float = 4.0
     current_stretch: float = 1.0
-    
-    # Связи
+
+    # Инфляция
+    inflation_ratio: float = 1.0
+    inflation_status: UterusInflationStatus = field(default=UterusInflationStatus.NORMAL)
+
+    # Жидкость в трубе
+    contained_fluid: float = 0.0
+    max_fluid_capacity: float = 15.0  # мл
+    fluid_mixture: FluidMixture = field(default_factory=FluidMixture)
+
+    # Соединения
     uterus: Optional[Any] = field(default=None, repr=False)
     ovary: Optional[Ovary] = field(default=None, repr=False)
-    
-    # Содержимое
-    contained_fluid: float = 0.0     # мл (жидкость в трубе)
-    contained_ovum: Optional[Any] = None  # яйцеклетка
-    
+
+    # Транспорт жидкости
+    fluid_flow_rate: float = 0.0  # скорость потока к яичнику
+    backflow_resistance: float = 0.5  # сопротивление обратному току
+
     def __post_init__(self):
+        self.current_length = self.base_length
+        self.current_diameter = self.base_diameter
         if self.ovary:
             self.ovary.attached_tube = self
-    
+
     @property
-    def current_length(self) -> float:
-        """Текущая длина с учётом растяжения."""
-        return self.length * self.current_stretch
-    
+    def stretched_length(self) -> float:
+        return self.base_length * self.current_stretch
+
     @property
     def is_stretched(self) -> bool:
-        """Натянута ли труба."""
         return self.current_stretch > 1.5
-    
+
+    @property
+    def is_inflated(self) -> bool:
+        return self.inflation_ratio > 1.5
+
     @property
     def can_prolapse_ovary(self) -> bool:
-        """Может ли яичник выпасть через эту трубу."""
         if not self.ovary:
             return False
-        # Яичник может выпасть если труба растянута и отверстие достаточно велико
         return (self.current_stretch > 2.0 and 
                 self.ovary.calculate_volume() < self.ovarian_opening * 10)
-    
+
+    @property
+    def total_volume(self) -> float:
+        """Общий объём трубы (структура + жидкость)."""
+        structure_volume = math.pi * (self.current_diameter/2)**2 * self.current_length
+        return structure_volume + self.contained_fluid
+
     def stretch(self, ratio: float) -> bool:
         """Растянуть трубу."""
         if ratio > self.max_stretch_ratio:
-            self.state = FallopianTubeState.BLOCKED  # Перерастяжение
+            self.state = FallopianTubeState.BLOCKED
             return False
-        
+
         self.current_stretch = ratio
-        
+        self.current_length = self.base_length * ratio
+
         if ratio > 2.0:
             self.state = FallopianTubeState.DILATED
-        elif ratio > 1.5:
-            self.state = FallopianTubeState.NORMAL
-            
+            self._update_inflation_status()
+
         return True
-    
+
+    def inflate(self, ratio: float) -> bool:
+        """Инфлировать (раздуть) трубу."""
+        if ratio > self.max_stretch_ratio:
+            return False
+
+        self.inflation_ratio = ratio
+        self.current_diameter = self.base_diameter * ratio
+
+        # Увеличиваем ёмкость
+        self.max_fluid_capacity = 15.0 * (ratio ** 2)
+
+        self._update_inflation_status()
+        return True
+
+    def _update_inflation_status(self):
+        """Обновить статус инфляции."""
+        total_stretch = self.current_stretch * self.inflation_ratio
+
+        if total_stretch < 1.5:
+            self.inflation_status = UterusInflationStatus.NORMAL
+        elif total_stretch < 2.0:
+            self.inflation_status = UterusInflationStatus.STRETCHED
+        elif total_stretch < 2.5:
+            self.inflation_status = UterusInflationStatus.DISTENDED
+        elif total_stretch < 3.0:
+            self.inflation_status = UterusInflationStatus.HYPERDISTENDED
+        elif total_stretch < 3.5:
+            self.inflation_status = UterusInflationStatus.RUPTURE_RISK
+        else:
+            self.inflation_status = UterusInflationStatus.RUPTURED
+
+    def add_fluid(self, amount: float, fluid_type: FluidType = None) -> float:
+        """Добавить жидкость в трубу."""
+        available = self.max_fluid_capacity - self.contained_fluid
+        actual = min(amount, available)
+
+        self.contained_fluid += actual
+        if fluid_type:
+            self.fluid_mixture.add(fluid_type, actual)
+
+        # Автоматическая передача в яичник
+        if self.ovary and self.contained_fluid > self.max_fluid_capacity * 0.7:
+            overflow = self.contained_fluid - self.max_fluid_capacity * 0.7
+            transferred = self.ovary.add_fluid(overflow)
+            self.contained_fluid -= transferred
+            self.fluid_mixture.remove(transferred)
+
+        return actual
+
+    def transfer_to_ovary(self, amount: float) -> float:
+        """Передать жидкость в яичник."""
+        if not self.ovary:
+            return 0.0
+
+        actual = min(amount, self.contained_fluid)
+        transferred = self.ovary.add_fluid(actual)
+        self.contained_fluid -= transferred
+        self.fluid_mixture.remove(transferred)
+
+        return transferred
+
+    def receive_backflow(self, amount: float) -> float:
+        """Принять обратный поток от яичника."""
+        # Сопротивление обратному току
+        actual = amount * (1.0 - self.backflow_resistance)
+        return self.add_fluid(actual)
+
     def evert_with_ovary(self):
-        """Вывернуть трубу с яичником наружу."""
         self.state = FallopianTubeState.EVERTED_WITH_OVARY
         if self.ovary:
             self.ovary.evert(1.0)
-    
+
     def reposition(self):
-        """Вправить трубу."""
         self.state = FallopianTubeState.NORMAL
         self.current_stretch = max(1.0, self.current_stretch - 0.5)
+        self.inflation_ratio = max(1.0, self.inflation_ratio - 0.3)
+        self.current_length = self.base_length * self.current_stretch
+        self.current_diameter = self.base_diameter * self.inflation_ratio
+        self._update_inflation_status()
         if self.ovary:
             self.ovary.reposition(0.5)
-    
+
     @property
     def uterine_opening_visible(self) -> bool:
-        """Видно ли отверстие в матке (при инверсии)."""
         if not self.uterus:
             return False
-        # При инверсии/выворачивании матки
         return (hasattr(self.uterus, 'state') and 
                 self.uterus.state in (UterusState.EVERTED, UterusState.INVERTED))
-    
+
     @property
     def external_description(self) -> str:
-        """Описание при внешнем виде (инверсия)."""
         if not self.uterine_opening_visible:
             return ""
-        
-        desc = [f"{self.side.upper()} TUBE OPENING"]
-        desc.append(f"Ø{self.uterine_opening:.1f}cm")
-        
+
+        desc = [f"{self.side.upper()} TUBE"]
+
+        if self.inflation_status != UterusInflationStatus.NORMAL:
+            desc.append(f"[{self.inflation_status.value.upper()}]")
+
+        desc.append(f"L:{self.current_length:.1f}cm Ø{self.current_diameter:.1f}cm")
+
         if self.is_stretched:
-            desc.append(f"stretched {self.current_stretch:.1f}x")
-        
+            desc.append(f"stretch:{self.current_stretch:.1f}x")
+
+        if self.is_inflated:
+            desc.append(f"inflate:{self.inflation_ratio:.1f}x")
+
         if self.ovary and self.ovary.visible_externally:
-            desc.append(f"→ OVARY EXPOSED")
-        
+            desc.append(f"→ OVARY")
+
         if self.contained_fluid > 0:
             desc.append(f"fluid:{self.contained_fluid:.1f}ml")
-        
+
         return " | ".join(desc)
-    
-    def __str__(self) -> str:
-        state_emoji = {
-            FallopianTubeState.NORMAL: "🟢",
-            FallopianTubeState.DILATED: "🟡",
-            FallopianTubeState.BLOCKED: "⛔",
-            FallopianTubeState.PROLAPSED: "🟠",
-            FallopianTubeState.EVERTED_WITH_OVARY: "🔴"
-        }.get(self.state, "⚪")
-        
-        if self.uterine_opening_visible:
-            return (
-                f"{state_emoji} Tube ({self.side}) [{self.state.name}]\n"
-                f"   👁️ EXTERNAL OPENING: {self.external_description}\n"
-                f"   Length: {self.current_length:.1f}cm (×{self.current_stretch:.1f})"
-            )
-        
-        return (
-            f"{state_emoji} Tube ({self.side}) [{self.state.name}]\n"
-            f"   Length: {self.current_length:.1f}cm, "
-            f"Ø{self.diameter}cm\n"
-            f"   Openings: uterine {self.uterine_opening}cm, "
-            f"ovarian {self.ovarian_opening}cm"
-        )
 
 
-@dataclass
+@dataclass 
 class Uterus:
     """
-    Матка с системой пролапса и полного выворачивания.
-    Содержит фаллопиевы трубы и яичники.
-    
-    При полном пролапсе (EVERTED):
-    - Вся матка выворачивается через влагалище наружу
-    - Внутренний объём становится внешним
-    - Все содержимое (жидкости, предметы) вываливается
-    - Видны отверстия фаллопиевых труб
-    - Через них возможно вывернуть яичники
+    Матка с системой инфляции и распределением жидкости.
+
+    Особенности:
+    - Инфляция как у груди
+    - Распределение жидкости по трубам к яичникам
+    - Обратный поток при переполнении
     """
-    
+
     name: str = "uterus"
-    
-    # Базовые размеры (нормальное состояние)
-    base_length: float = 7.0         # см (длина матки)
-    base_width: float = 5.0          # см (ширина)
-    base_depth: float = 3.0          # см (толщина стенок)
-    
-    # Внутренний объём
-    cavity_volume: float = 50.0      # мл (объём полости)
-    
+
+    # Базовые размеры
+    base_length: float = 7.0
+    base_width: float = 5.0
+    base_depth: float = 3.0
+    cavity_volume: float = 50.0
+
     # Компоненты
     cervix: Cervix = field(default_factory=Cervix)
     walls: UterineWall = field(default_factory=UterineWall)
-    
-    # Фаллопиевы трубы и яичники
+
+    # Трубы и яичники
     left_tube: Optional[FallopianTube] = field(default=None)
     right_tube: Optional[FallopianTube] = field(default=None)
     left_ovary: Optional[Ovary] = field(default=None)
     right_ovary: Optional[Ovary] = field(default=None)
-    
+
     # Состояние
     state: UterusState = field(default=UterusState.NORMAL)
-    prolapse_stage: float = 0.0      # 0-1 (степень опущения)
-    
-    # Позиция (0 = норма, 1 = полный пролапс)
+    inflation_status: UterusInflationStatus = field(default=UterusInflationStatus.NORMAL)
+
+    prolapse_stage: float = 0.0
     descent_position: float = 0.0
-    
-    # Содержимое полости
-    fluids: Dict[FluidType, float] = field(default_factory=dict)
+
+    # СИСТЕМА ЖИДКОСТИ
+    mixture: FluidMixture = field(default_factory=FluidMixture)
+    leak_factor: float = 15.0
+
+    # СИСТЕМА ИНФЛЯЦИИ
+    inflation_ratio: float = 1.0           # Коэффициент инфляции матки
+    tube_fill_ratio: float = 0.3           # Доля жидкости в трубы (0-1)
+    ovary_fill_ratio: float = 0.2          # Доля от труб в яичники
+    backflow_enabled: bool = True          # Разрешить обратный поток
+
+    # Вставленные предметы
     inserted_objects: List[Any] = field(default_factory=list)
-    
+
     # Физиология
-    muscle_tone: float = 0.7         # тонус мышц матки
-    ligament_integrity: float = 1.0  # целостность связок
-    pelvic_floor_strength: float = 0.7  # сила тазового дна
-    
-    # При полном пролапсе - вывернутая конфигурация
-    everted_volume: float = field(init=False)  # объём вывернутой матки
-    
+    muscle_tone: float = 0.7
+    ligament_integrity: float = 1.0
+    pelvic_floor_strength: float = 0.7
+    peristalsis_strength: float = 0.5      # Сила перистальтики
+
+    # Дополнительный объём при выворачивании
+    everted_volume: float = field(init=False)
+
     # События
     _listeners: Dict[str, List[Callable]] = field(default_factory=dict)
-    
+
     def __post_init__(self):
-        self.everted_volume = self.cavity_volume * 1.5  # +50% при выворачивании
-        
-        # Инициализация труб и яичников если не заданы
+        self.everted_volume = self.cavity_volume * 1.5
+
         if self.left_tube is None:
             self.left_tube = FallopianTube(side="left", uterus=self)
         if self.right_tube is None:
@@ -442,224 +552,634 @@ class Uterus:
             self.right_ovary = Ovary(side="right")
             self.right_tube.ovary = self.right_ovary
             self.right_ovary.attached_tube = self.right_tube
-    
-    # ======================
-    # EVENTS
-    # ======================
-    
+
+    # ============ EVENTS ============
+
     def on(self, event: str, callback: Callable):
         self._listeners.setdefault(event, []).append(callback)
-    
+
     def _emit(self, event: str, **data):
         for cb in self._listeners.get(event, []):
             cb(self, **data)
-    
-    # ======================
-    # PROPERTIES
-    # ======================
-    
+
+    # ============ PROPERTIES ============
+
     @property
-    def tubes(self) -> List[FallopianTube]:
-        """Список труб."""
-        return [t for t in [self.left_tube, self.right_tube] if t]
-    
+    def filled(self) -> float:
+        """Общий объём жидкости во всей системе."""
+        total = self.mixture.total()
+        for tube in self.tubes:
+            if tube:
+                total += tube.contained_fluid
+        for ovary in self.ovaries:
+            if ovary:
+                total += ovary.fluid_content
+        return total
+
     @property
-    def ovaries(self) -> List[Ovary]:
-        """Список яичников."""
-        return [o for o in [self.left_ovary, self.right_ovary] if o]
-    
+    def uterus_filled(self) -> float:
+        """Жидкость только в матке."""
+        return self.mixture.total()
+
     @property
-    def current_length(self) -> float:
-        """Текущая длина с учётом состояния."""
-        if self.state == UterusState.EVERTED:
-            # При выворачивании длина увеличивается (выворачивается наружу)
-            return self.base_length * (1 + self.prolapse_stage * 2)
-        return self.base_length * (1 - self.descent_position * 0.3)
-    
+    def tubes_filled(self) -> float:
+        """Жидкость в трубах."""
+        return sum(t.contained_fluid for t in self.tubes if t)
+
+    @property
+    def ovaries_filled(self) -> float:
+        """Жидкость в яичниках."""
+        return sum(o.fluid_content for o in self.ovaries if o)
+
     @property
     def current_volume(self) -> float:
-        """Текущий внутренний объём."""
+        """Текущий объём матки с учётом инфляции."""
         if self.state in (UterusState.EVERTED, UterusState.INVERTED):
-            # При выворачивании внутренний объём минимален
             return self.cavity_volume * 0.1
-        stretch_factor = self.walls.stretch_ratio ** 3
+        stretch_factor = self.inflation_ratio ** 3
         return self.cavity_volume * stretch_factor
-    
+
     @property
     def available_volume(self) -> float:
-        """Свободный объём в полости."""
-        fluid_volume = sum(self.fluids.values())
+        """Свободный объём в матке."""
         objects_volume = sum(
             getattr(obj, 'volume', 0) or getattr(obj, 'effective_volume', 0)
             for obj in self.inserted_objects
         )
-        return max(0, self.current_volume - fluid_volume - objects_volume)
-    
+        return max(0, self.current_volume - self.uterus_filled - objects_volume)
+
+    @property
+    def tubes(self) -> List[FallopianTube]:
+        return [t for t in [self.left_tube, self.right_tube] if t]
+
+    @property
+    def ovaries(self) -> List[Ovary]:
+        return [o for o in [self.left_ovary, self.right_ovary] if o]
+
     @property
     def is_everted(self) -> bool:
-        """Полностью ли вывернута."""
         return self.state == UterusState.EVERTED
-    
-    @property
-    def is_inverted(self) -> bool:
-        """Инвертирована ли (внутрь)."""
-        return self.state == UterusState.INVERTED
-    
+
     @property
     def is_prolapsed(self) -> bool:
-        """Есть ли пролапс любой степени."""
         return self.state in (UterusState.DESCENDED, UterusState.PROLAPSED, UterusState.EVERTED)
-    
+
     @property
-    def external_visible_volume(self) -> float:
+    def total_system_volume(self) -> float:
+        """Общий объём всей системы (матка + трубы + яичники)."""
+        total = self.current_volume
+        for tube in self.tubes:
+            if tube:
+                total += tube.max_fluid_capacity
+        for ovary in self.ovaries:
+            if ovary:
+                total += ovary.max_fluid_capacity
+        return total
+
+    # ============ INFLATION SYSTEM ============
+
+    def inflate(self, ratio: float) -> bool:
         """
-        Объём, видимый снаружи при пролапсе.
-        При полном выворачивании - весь внутренний объём + стенки.
+        Инфлировать (раздуть) матку и трубы.
+
+        Args:
+            ratio: Коэффициент инфляции (1.0 = норма, 2.0 = в 2 раза больше)
+
+        Returns:
+            True если успешно
         """
-        if self.state == UterusState.EVERTED:
-            # Внутренняя поверхность снаружи
-            return self.everted_volume
-        elif self.state == UterusState.PROLAPSED:
-            return self.cavity_volume * self.prolapse_stage * 0.5
-        return 0.0
-    
-    @property
-    def tube_openings_visible(self) -> bool:
-        """Видны ли отверстия фаллопиевых труб."""
-        return self.is_everted or self.is_inverted
-    
-    @property
-    def everted_ovaries(self) -> List[Ovary]:
-        """Список вывернутых наружу яичников."""
-        return [o for o in self.ovaries if o and o.is_everted]
-    
-    @property
-    def external_description(self) -> str:
-        """Описание внешнего вида при выворачивании."""
-        if not self.is_everted:
-            return ""
-        
-        parts = ["🔴 EVERTED UTERUS - INTERNAL SURFACE EXPOSED"]
-        
-        # Отверстия труб
-        if self.tube_openings_visible:
-            parts.append("\n  VISIBLE TUBE OPENINGS:")
-            for tube in self.tubes:
-                if tube:
-                    parts.append(f"    • {tube.external_description}")
-        
-        # Вывернутые яичники
-        everted = self.everted_ovaries
-        if everted:
-            parts.append("\n  EVERTED OVARIES:")
-            for ovary in everted:
-                parts.append(f"    • {ovary.external_description}")
-        
-        return "\n".join(parts)
-    
-    # ======================
-    # FLUID MANAGEMENT
-    # ======================
-    
-    def add_fluid(self, fluid_type: FluidType, amount: float) -> float:
-        """Добавить жидкость в полость."""
-        if self.state == UterusState.EVERTED:
-            # При выворачивании жидкость вытекает наружу
-            self._emit("fluid_ejected", fluid_type=fluid_type, amount=amount, reason="everted")
-            return 0.0
-        
-        available = self.available_volume
-        actual = min(amount, available)
-        
-        self.fluids[fluid_type] = self.fluids.get(fluid_type, 0) + actual
-        
-        if actual < amount:
-            self._emit("overflow", fluid_type=fluid_type, overflow=amount - actual)
-        
-        if actual > 0:
-            self._emit("fluid_added", fluid_type=fluid_type, amount=actual)
-        
-        return actual
-    
-    def remove_fluid(self, fluid_type: Optional[FluidType] = None, amount: Optional[float] = None) -> Dict[FluidType, float]:
-        """Удалить жидкость."""
-        removed = {}
-        
-        if fluid_type:
-            available = self.fluids.get(fluid_type, 0)
-            to_remove = amount if amount is not None else available
-            actual = min(to_remove, available)
-            removed[fluid_type] = actual
-            self.fluids[fluid_type] = available - actual
-            if self.fluids[fluid_type] <= 0:
-                del self.fluids[fluid_type]
+        if ratio > 4.0:
+            self._emit("inflation_limit_reached", ratio=ratio)
+            return False
+
+        old_ratio = self.inflation_ratio
+        self.inflation_ratio = ratio
+
+        # Обновляем размеры
+        self.base_length *= ratio
+        self.base_width *= ratio
+        self.base_depth *= ratio
+
+        # Инфлируем шейку
+        self.cervix.inflate(ratio)
+
+        # Инфлируем трубы
+        for tube in self.tubes:
+            if tube:
+                tube.inflate(ratio)
+
+        self._update_inflation_status()
+
+        if ratio > old_ratio:
+            self._emit("inflated", old_ratio=old_ratio, new_ratio=ratio)
+
+        return True
+
+    def _update_inflation_status(self):
+        """Обновить статус инфляции на основе текущего растяжения."""
+        wall_stretch = self.walls.stretch_ratio
+        total_stretch = self.inflation_ratio * wall_stretch
+
+        if total_stretch < 1.5:
+            self.inflation_status = UterusInflationStatus.NORMAL
+        elif total_stretch < 2.0:
+            self.inflation_status = UterusInflationStatus.STRETCHED
+        elif total_stretch < 2.5:
+            self.inflation_status = UterusInflationStatus.DISTENDED
+        elif total_stretch < 3.0:
+            self.inflation_status = UterusInflationStatus.HYPERDISTENDED
+        elif total_stretch < 3.5:
+            self.inflation_status = UterusInflationStatus.RUPTURE_RISK
+            self._emit("rupture_warning", stretch=total_stretch)
         else:
-            # Удалить все
-            for ft in list(self.fluids.keys()):
-                available = self.fluids[ft]
-                to_remove = amount if amount is not None else available
-                actual = min(to_remove, available)
-                removed[ft] = actual
-                self.fluids[ft] -= actual
-                if self.fluids[ft] <= 0:
-                    del self.fluids[ft]
-        
-        return removed
-    
-    def eject_all_contents(self) -> Dict[str, Any]:
-        """
-        Принудительное изгнание всего содержимого.
-        Используется при полном выворачивании.
-        """
-        ejected = {
-            'fluids': self.fluids.copy(),
-            'objects': self.inserted_objects.copy(),
-            'total_volume': sum(self.fluids.values()) + sum(
-                getattr(obj, 'volume', 0) or getattr(obj, 'effective_volume', 0)
-                for obj in self.inserted_objects
-            )
+            self.inflation_status = UterusInflationStatus.RUPTURED
+            self._emit("ruptured", stretch=total_stretch)
+
+    def get_inflation_details(self) -> Dict[str, Any]:
+        """Получить детали инфляции."""
+        return {
+            "uterus_ratio": self.inflation_ratio,
+            "wall_stretch": self.walls.stretch_ratio,
+            "total_stretch": self.inflation_ratio * self.walls.stretch_ratio,
+            "status": self.inflation_status.value,
+            "skin_tension": self.walls.get_skin_tension(),
+            "stretch_marks_risk": self.walls.get_stretch_marks_risk(),
+            "is_permanent": self.walls.is_permanently_stretched,
         }
-        
-        # Очищаем
-        self.fluids.clear()
+
+    # ============ FLUID DISTRIBUTION ============
+
+    def _distribute_fluid_to_tubes(self, amount: float, fluid_type: FluidType) -> float:
+        """
+        Распределить жидкость по фаллопиевым трубам.
+
+        Returns:
+            Количество, которое не удалось распределить
+        """
+        if not self.tubes:
+            return amount
+
+        # Доля в трубы
+        to_tubes = amount * self.tube_fill_ratio
+        per_tube = to_tubes / len(self.tubes)
+
+        distributed = 0.0
+        for tube in self.tubes:
+            if tube:
+                added = tube.add_fluid(per_tube, fluid_type)
+                distributed += added
+
+                # Автоматическая передача в яичник
+                if tube.ovary:
+                    overflow = tube.contained_fluid - tube.max_fluid_capacity * 0.8
+                    if overflow > 0:
+                        tube.transfer_to_ovary(overflow)
+
+        return amount - distributed
+
+    def _handle_backflow(self) -> float:
+        """
+        Обработать обратный поток от яичников при переполнении.
+
+        Returns:
+            Количество жидкости, вернувшееся в матку
+        """
+        if not self.backflow_enabled:
+            return 0.0
+
+        backflow_total = 0.0
+
+        for ovary in self.ovaries:
+            if ovary and ovary.fluid_content > ovary.max_fluid_capacity * 0.9:
+                # Избыточная жидкость возвращается
+                excess = ovary.fluid_content - ovary.max_fluid_capacity * 0.9
+                returned = ovary.remove_fluid(excess * 0.5)
+
+                # Через трубу обратно в матку
+                if ovary.attached_tube:
+                    ovary.attached_tube.receive_backflow(returned)
+                    backflow_total += returned * ovary.attached_tube.backflow_resistance
+
+        return backflow_total
+
+    def _apply_peristalsis(self, dt: float):
+        """Применить перистальтику для перемещения жидкости."""
+        if self.peristalsis_strength <= 0:
+            return
+
+        # Перистальтика толкает жидкость к трубам
+        for tube in self.tubes:
+            if tube and self.uterus_filled > 0:
+                push_amount = self.uterus_filled * self.peristalsis_strength * 0.1 * dt
+
+                # Перемещаем в трубу
+                if tube.contained_fluid < tube.max_fluid_capacity:
+                    space = tube.max_fluid_capacity - tube.contained_fluid
+                    actual = min(push_amount, space)
+
+                    # Берём из смеси матки
+                    self.mixture.remove(actual)
+                    tube.add_fluid(actual)
+
+                    # Автопередача в яичник
+                    if tube.ovary:
+                        tube.transfer_to_ovary(actual * 0.3)
+
+    # ============ PRESSURE SYSTEM ============
+
+    def pressure(self, defs: Dict[FluidType, BreastFluid] = FLUID_DEFS) -> float:
+        """Расчёт давления с учётом инфляции."""
+        if self.uterus_filled <= 0:
+            return 0.0
+
+        viscosity = self.mixture.viscosity(defs)
+        fill_ratio = self.uterus_filled / self.current_volume if self.current_volume > 0 else 0
+
+        # Базовое давление
+        pressure = fill_ratio * 2.0
+
+        # Модификатор вязкости
+        pressure *= (1.0 + viscosity * 0.5)
+
+        # Модификатор эластичности
+        elasticity_factor = 1.0 / max(0.1, self.walls.elasticity)
+        pressure *= elasticity_factor
+
+        # Модификатор инфляции (большая инфляция = меньше давления)
+        inflation_mod = 1.0 / (self.inflation_ratio ** 0.5)
+        pressure *= inflation_mod
+
+        # Модификатор растяжения стенок
+        stretch_penalty = (self.walls.stretch_ratio - 1.0) * 0.3
+        pressure += stretch_penalty
+
+        return pressure
+
+    def _calc_leak_rate(self, pressure: float, viscosity: float) -> float:
+        """Расчёт скорости утечки через шейку."""
+        if not self.cervix.is_open:
+            return 0.0
+
+        effective_gape = self.cervix.effective_gape
+        if effective_gape <= 0:
+            return 0.0
+
+        radius = effective_gape / 2
+        area = math.pi * radius ** 2
+
+        if pressure < PRESSURE_LEAK_MIN:
+            return 0.0
+
+        pressure_diff = pressure - PRESSURE_LEAK_MIN + 0.1
+        flow_efficiency = (self.cervix.gape_diameter / self.cervix.diameter) ** 2
+
+        flow_rate = 0.8 * area * pressure_diff * flow_efficiency / max(viscosity, 0.1)
+        return max(0.0, flow_rate) * (self.leak_factor / 15.0)
+
+    def _determine_state(self, pressure: float) -> UterusState:
+        """Определение состояния."""
+        if self.uterus_filled <= 0:
+            return UterusState.EMPTY
+
+        if self.is_everted:
+            return UterusState.EVERTED
+
+        if pressure < 0.5:
+            return UterusState.NORMAL
+        if pressure < 1.0:
+            return UterusState.TENSE
+
+        if self.cervix.is_open and pressure >= PRESSURE_LEAK_MIN:
+            return UterusState.LEAKING
+
+        return UterusState.OVERPRESSURED
+
+    # ============ FLUID MANAGEMENT ============
+
+    def add_fluid(self, fluid: 'FluidType | BreastFluid', amount: float) -> float:
+        """Добавить жидкость с распределением по системе."""
+        if amount <= 0:
+            return 0.0
+
+        fluid_type = fluid.fluid_type if isinstance(fluid, BreastFluid) else fluid
+
+        # Сначала заполняем матку
+        available = self.available_volume
+
+        if amount <= available:
+            # Всё в матку
+            self.mixture.add(fluid_type, amount)
+
+            # Часть распределяем в трубы
+            self._distribute_fluid_to_tubes(amount * self.tube_fill_ratio, fluid_type)
+
+            self._emit("fluid_added", amount=amount, fluid_type=fluid_type)
+            return amount
+
+        # Переполнение матки - пытаемся растянуть
+        excess = amount - available
+
+        if self.walls.can_stretch(self.walls.stretch_ratio + 0.1):
+            needed_stretch = 1.0 + (excess / self.cavity_volume) ** (1/3)
+            if self.walls.stretch(needed_stretch):
+                available = self.available_volume
+                actual = min(amount, available)
+                self.mixture.add(fluid_type, actual)
+                self._distribute_fluid_to_tubes(actual * self.tube_fill_ratio, fluid_type)
+                self._emit("fluid_added", amount=actual, stretched=True)
+                return actual
+
+        # Пытаемся инфлировать
+        if self.inflate(self.inflation_ratio + 0.1):
+            available = self.available_volume
+            actual = min(amount, available)
+            self.mixture.add(fluid_type, actual)
+            self._distribute_fluid_to_tubes(actual * self.tube_fill_ratio, fluid_type)
+            self._emit("fluid_added", amount=actual, inflated=True)
+            return actual
+
+        # Не влезает
+        if available > 0:
+            self.mixture.add(fluid_type, available)
+            self._distribute_fluid_to_tubes(available * self.tube_fill_ratio, fluid_type)
+            self._emit("fluid_added", amount=available, overflow=amount - available)
+            return available
+
+        return 0.0
+
+    def remove_fluid(self, amount: float) -> float:
+        """Удалить жидкость (сначала из матки)."""
+        if amount <= 0:
+            return 0.0
+
+        # Сначала из матки
+        from_uterus = min(amount, self.uterus_filled)
+        self.mixture.remove(from_uterus)
+        remaining = amount - from_uterus
+
+        # Потом из труб
+        if remaining > 0:
+            for tube in self.tubes:
+                if tube and remaining > 0:
+                    from_tube = min(remaining, tube.contained_fluid)
+                    tube.contained_fluid -= from_tube
+                    tube.fluid_mixture.remove(from_tube)
+                    remaining -= from_tube
+
+        # Потом из яичников
+        if remaining > 0:
+            for ovary in self.ovaries:
+                if ovary and remaining > 0:
+                    from_ovary = ovary.remove_fluid(remaining)
+                    remaining -= from_ovary
+
+        return amount - remaining
+
+    def drain_all(self) -> Dict[FluidType, float]:
+        """Полностью опустошить всю систему."""
+        removed = {}
+
+        # Из матки
+        for fluid_type in list(self.mixture.components.keys()):
+            amount = self.mixture.components[fluid_type]
+            removed[fluid_type] = removed.get(fluid_type, 0) + amount
+            del self.mixture.components[fluid_type]
+
+        # Из труб
+        for tube in self.tubes:
+            if tube:
+                for ft, amount in tube.fluid_mixture.components.items():
+                    removed[ft] = removed.get(ft, 0) + amount
+                tube.contained_fluid = 0.0
+                tube.fluid_mixture.components.clear()
+
+        # Из яичников
+        for ovary in self.ovaries:
+            if ovary:
+                # Яичники содержат безтиповую жидкость
+                if ovary.fluid_content > 0:
+                    removed[FluidType.WATER] = removed.get(FluidType.WATER, 0) + ovary.fluid_content
+                    ovary.fluid_content = 0.0
+
+        self._emit("drained", amount=sum(removed.values()), fluids=removed)
+        return removed
+
+    # ============ TICK & UPDATE ============
+
+    def tick(self, defs: Dict[FluidType, BreastFluid] = FLUID_DEFS, dt: float = 1.0) -> Dict[str, Any]:
+        """Обновление состояния."""
+        if dt <= 0:
+            raise ValueError(f"dt must be positive, got {dt}")
+
+        # 1. Восстановление стенок
+        self.walls.recover(dt)
+
+        # 2. Обратный поток
+        backflow = self._handle_backflow()
+        if backflow > 0:
+            self.mixture.add(FluidType.WATER, backflow)  # Упрощение
+
+        # 3. Перистальтика
+        self._apply_peristalsis(dt)
+
+        # 4. Расчёт давления
+        pressure = self.pressure(defs)
+
+        # 5. Обновление шейки
+        self._update_cervix(pressure, dt)
+
+        # 6. Определение состояния
+        old_state = self.state
+        new_state = self._determine_state(pressure)
+
+        if new_state != old_state:
+            self.state = new_state
+            self._emit("state_change", old=old_state, new=new_state)
+
+            if new_state == UterusState.LEAKING:
+                self._emit("leak_start")
+            elif old_state == UterusState.LEAKING:
+                self._emit("leak_end")
+
+        # 7. Утечка
+        leaked = 0.0
+        if self.state == UterusState.LEAKING:
+            viscosity = self.mixture.viscosity(defs)
+            leak_rate = self._calc_leak_rate(pressure, viscosity)
+            max_leak = self.uterus_filled * leak_rate * dt
+            leaked = min(max_leak, self.uterus_filled)
+
+            if leaked > 0:
+                self.mixture.remove(leaked)
+                self._emit("leak", amount=leaked)
+
+        # 8. Обновление инфляции
+        self._update_inflation_status()
+
+        # 9. Обновление яичников
+        for ovary in self.ovaries:
+            if ovary:
+                ovary.hormone_production = max(0.0, ovary.hormone_production - 0.001 * dt)
+                if ovary.is_everted:
+                    ovary.blood_supply = max(0.3, ovary.blood_supply - 0.01 * dt)
+                    if ovary.blood_supply < 0.5:
+                        ovary.state = OvaryState.TORSION
+
+        # 10. Сокращение шейки
+        if self.cervix.state not in (CervixState.EVERTED, CervixState.FULLY_OPEN):
+            self.cervix.contract()
+
+        # 11. Проверка пролапса
+        if self.state == UterusState.NORMAL:
+            risk = self.calculate_prolapse_risk()
+            if risk > 0.8:
+                self._progress_prolapse(0.1)
+
+        return {
+            "state": self.state.name,
+            "inflation_status": self.inflation_status.value,
+            "pressure": round(pressure, 2),
+            "uterus_filled": round(self.uterus_filled, 1),
+            "tubes_filled": round(self.tubes_filled, 1),
+            "ovaries_filled": round(self.ovaries_filled, 1),
+            "total_filled": round(self.filled, 1),
+            "capacity": round(self.current_volume, 1),
+            "leaked": round(leaked, 2),
+            "cervix_dilation": round(self.cervix.current_dilation, 1),
+            "inflation_ratio": round(self.inflation_ratio, 2),
+        }
+
+    def _update_cervix(self, pressure: float, dt: float):
+        """Обновление шейки под давлением."""
+        if pressure > 0.8:
+            dilation_pressure = (pressure - 0.8) * 0.5 * dt
+            self.cervix.dilate(dilation_pressure)
+
+        if pressure > 1.5:
+            force_dilation = (pressure - 1.5) * 0.3 * dt
+            self.cervix.dilate(force_dilation)
+
+    # ============ PROLAPSE MECHANICS ============
+
+    def calculate_prolapse_risk(self) -> float:
+        """Расчёт риска пролапса с учётом инфляции."""
+        risk = 0.0
+        risk += (1.0 - self.ligament_integrity) * 0.3
+        risk += (1.0 - self.pelvic_floor_strength) * 0.3
+
+        if self.walls.stretch_ratio > 2.0:
+            risk += (self.walls.stretch_ratio - 2.0) * 0.2
+
+        # Инфляция увеличивает риск
+        if self.inflation_ratio > 2.0:
+            risk += (self.inflation_ratio - 2.0) * 0.15
+
+        fill_ratio = self.uterus_filled / max(self.current_volume, 1)
+        risk += fill_ratio * 0.2
+
+        risk += self.walls.fatigue * 0.1
+
+        ovary_weight = sum(o.total_volume for o in self.ovaries if o)
+        risk += ovary_weight * 0.001
+
+        return min(1.0, risk)
+
+    def apply_strain(self, force: float) -> bool:
+        """Приложить силу."""
+        risk = self.calculate_prolapse_risk()
+        if force * risk > 0.5:
+            return self._progress_prolapse(force * risk)
+        return False
+
+    def _progress_prolapse(self, amount: float) -> bool:
+        """Прогрессирование пролапса."""
+        old_state = self.state
+
+        self.descent_position = min(1.0, self.descent_position + amount * 0.1)
+        self.prolapse_stage = self.descent_position
+
+        for tube in self.tubes:
+            if tube:
+                tube.stretch(1.0 + self.descent_position * 2)
+
+        if self.descent_position < 0.3:
+            self.state = UterusState.DESCENDED
+        elif self.descent_position < 0.7:
+            self.state = UterusState.PROLAPSED
+        else:
+            if self.state != UterusState.EVERTED:
+                self._complete_eversion()
+
+        if self.state != old_state:
+            self._emit("state_change", old=old_state, new=self.state)
+            return True
+        return False
+
+    def _complete_eversion(self):
+        """Полное выворачивание."""
+        self.state = UterusState.EVERTED
+        self.cervix.state = CervixState.EVERTED
+
+        self.drain_all()
         for obj in self.inserted_objects:
             if hasattr(obj, 'is_inserted'):
                 obj.is_inserted = False
         self.inserted_objects.clear()
-        
-        self._emit("total_ejection", **ejected)
-        return ejected
-    
-    # ======================
-    # OBJECT INSERTION
-    # ======================
-    
+
+        self.walls.stretch_ratio = 2.5
+        self.walls.fatigue = 1.0
+
+        for tube in self.tubes:
+            if tube:
+                tube.state = FallopianTubeState.PROLAPSED
+
+        self._emit("complete_eversion")
+
+    def reduce_prolapse(self, amount: float = 0.5) -> bool:
+        """Уменьшить пролапс."""
+        if self.state == UterusState.EVERTED and amount < 0.5:
+            return False
+
+        self.descent_position = max(0.0, self.descent_position - amount)
+        self.prolapse_stage = self.descent_position
+
+        for ovary in self.ovaries:
+            if ovary and ovary.state in (OvaryState.PROLAPSED, OvaryState.EVERTED):
+                ovary.reposition(amount * 0.5)
+
+        for tube in self.tubes:
+            if tube:
+                tube.current_stretch = max(1.0, tube.current_stretch - amount)
+
+        if self.descent_position < 0.1:
+            self.state = UterusState.NORMAL
+            self.cervix.state = CervixState.CLOSED
+
+        return True
+
+    # ============ OBJECT INSERTION ============
+
     def insert_object(self, obj: Any) -> bool:
-        """Вставить предмет в матку (через шейку)."""
-        if self.state == UterusState.EVERTED:
-            return False  # Невозможно вставить в вывернутую матку
-        
+        """Вставить предмет."""
+        if self.is_everted:
+            return False
+
         obj_volume = getattr(obj, 'volume', 0) or getattr(obj, 'effective_volume', 0)
-        
         if obj_volume > self.available_volume:
             return False
-        
-        # Проверка прохода через шейку
+
         obj_diameter = getattr(obj, 'diameter', 0) or getattr(obj, 'effective_diameter', 0)
         if obj_diameter > self.cervix.effective_diameter * 1.2:
-            # Нужно растянуть шейку
             if not self.cervix.dilate(obj_diameter - self.cervix.effective_diameter):
                 return False
-        
+
         self.inserted_objects.append(obj)
         if hasattr(obj, 'is_inserted'):
             obj.is_inserted = True
-        if hasattr(obj, 'inserted_depth'):
-            obj.inserted_depth = getattr(obj, 'length', 0)
-        
+
         self._emit("object_inserted", object=obj)
         return True
-    
+
     def remove_object(self, index: int) -> Optional[Any]:
         """Извлечь предмет."""
         if 0 <= index < len(self.inserted_objects):
@@ -669,351 +1189,100 @@ class Uterus:
             self._emit("object_removed", object=obj)
             return obj
         return None
-    
-    # ======================
-    # TUBE & OVARY MANIPULATION
-    # ======================
-    
+
+    # ============ TUBE & OVARY OPERATIONS ============
+
     def stretch_tube(self, side: str, ratio: float) -> bool:
-        """Растянуть фаллопиеву трубу."""
+        """Растянуть трубу."""
         tube = self.left_tube if side == "left" else self.right_tube
         if not tube:
             return False
-        
+
         success = tube.stretch(ratio)
-        
-        # При сильном растяжении яичник может начать выпадать
         if success and ratio > 2.5 and tube.ovary:
             if tube.can_prolapse_ovary:
                 tube.ovary.evert(0.3)
-                self._emit("ovary_starting_prolapse", side=side, ovary=tube.ovary)
-        
         return success
-    
+
+    def inflate_tube(self, side: str, ratio: float) -> bool:
+        """Инфлировать трубу."""
+        tube = self.left_tube if side == "left" else self.right_tube
+        if not tube:
+            return False
+        return tube.inflate(ratio)
+
     def evert_ovary(self, side: str, force: float = 1.0) -> bool:
-        """
-        Вывернуть яичник наружу через трубу.
-        Требует растянутой трубы и видимого отверстия (инверсия/выворачивание).
-        """
+        """Вывернуть яичник."""
         tube = self.left_tube if side == "left" else self.right_tube
         ovary = self.left_ovary if side == "left" else self.right_ovary
-        
+
         if not tube or not ovary:
             return False
-        
-        # Проверка условий
-        if not self.tube_openings_visible:
-            self._emit("evert_failed", reason="tube_openings_not_visible", side=side)
+
+        if not self.cervix.is_open and not self.is_everted:
             return False
-        
+
         if tube.current_stretch < 2.0:
-            self._emit("evert_failed", reason="tube_not_stretched_enough", side=side)
             return False
-        
-        # Выворачивание
+
         tube.evert_with_ovary()
-        
-        # Дополнительное усилие
         if force > 0.5:
             ovary.evert(force)
-        
-        self._emit("ovary_everted", side=side, ovary=ovary, tube=tube)
+
         return True
-    
-    def reposition_ovary(self, side: str, amount: float = 0.5) -> bool:
-        """Вправить яичник."""
-        ovary = self.left_ovary if side == "left" else self.right_ovary
-        tube = self.left_tube if side == "left" else self.right_tube
-        
-        if not ovary:
-            return False
-        
-        success = ovary.reposition(amount)
-        
-        if success and tube:
-            tube.reposition()
-        
-        return success
-    
+
     def ovulate(self, side: str, follicle_idx: int = -1) -> bool:
-        """Овуляция - разрыв фолликула и выход яйцеклетки."""
+        """Овуляция."""
         ovary = self.left_ovary if side == "left" else self.right_ovary
         tube = self.left_tube if side == "left" else self.right_tube
-        
+
         if not ovary or not tube:
             return False
-        
-        # Если яичник вывернут - овуляция наружу
+
         if ovary.is_everted:
             if ovary.rupture_follicle(follicle_idx if follicle_idx >= 0 else 0):
-                self._emit("external_ovulation", side=side, ovary=ovary)
                 return True
             return False
-        
-        # Нормальная овуляция в трубу
+
         if ovary.rupture_follicle(follicle_idx if follicle_idx >= 0 else 0):
-            # Яйцеклетка попадает в трубу
             tube.contained_ovum = {"stage": "fertilizable", "side": side}
-            self._emit("ovulation", side=side, tube=tube)
             return True
-        
+
         return False
-    
-    # ======================
-    # PROLAPSE MECHANICS
-    # ======================
-    
-    def calculate_prolapse_risk(self) -> float:
-        """Рассчитать риск пролапса."""
-        risk = 0.0
-        
-        # Слабость связок
-        risk += (1.0 - self.ligament_integrity) * 0.3
-        
-        # Слабость тазового дна
-        risk += (1.0 - self.pelvic_floor_strength) * 0.3
-        
-        # Перерастяжение стенок
-        if self.walls.stretch_ratio > 2.0:
-            risk += (self.walls.stretch_ratio - 2.0) * 0.2
-        
-        # Внутреннее давление (от жидкостей и предметов)
-        fill_ratio = 1.0 - (self.available_volume / max(self.current_volume, 1))
-        risk += fill_ratio * 0.2
-        
-        # Усталость тканей
-        risk += self.walls.fatigue * 0.1
-        
-        # Тяжесть яичников
-        ovary_weight = sum(o.calculate_volume() for o in self.ovaries if o)
-        risk += ovary_weight * 0.001
-        
-        return min(1.0, risk)
-    
-    def apply_strain(self, force: float) -> bool:
-        """
-        Приложить силу (например, при родах, сильном напряжении).
-        Возвращает True, если произошёл пролапс.
-        """
-        # Проверка на пролапс
-        risk = self.calculate_prolapse_risk()
-        
-        if force * risk > 0.5:
-            return self._progress_prolapse(force * risk)
-        
-        return False
-    
-    def _progress_prolapse(self, amount: float) -> bool:
-        """Прогрессирование пролапса."""
-        old_state = self.state
-        
-        self.descent_position = min(1.0, self.descent_position + amount * 0.1)
-        self.prolapse_stage = self.descent_position
-        
-        # Растяжение труб при пролапсе
-        for tube in self.tubes:
-            if tube:
-                tube.stretch(1.0 + self.descent_position * 2)
-        
-        # Определение стадии
-        if self.descent_position < 0.3:
-            self.state = UterusState.DESCENDED
-        elif self.descent_position < 0.7:
-            self.state = UterusState.PROLAPSED
-        else:
-            # Полное выворачивание!
-            if self.state != UterusState.EVERTED:
-                self._complete_eversion()
-        
-        if self.state != old_state:
-            self._emit("state_change", old=old_state, new=self.state)
-            return True
-        
-        return False
-    
-    def _complete_eversion(self):
-        """Полное выворачивание матки наизнанку."""
-        self.state = UterusState.EVERTED
-        self.cervix.state = CervixState.EVERTED
-        
-        # Выталкивание всего содержимого
-        ejected = self.eject_all_contents()
-        
-        # Физические изменения
-        self.walls.stretch_ratio = 2.5  # Сильное растяжение
-        self.walls.fatigue = 1.0  # Максимальная усталость
-        
-        # Трубы теперь видны снаружи
-        for tube in self.tubes:
-            if tube:
-                tube.state = FallopianTubeState.PROLAPSED
-        
-        self._emit("complete_eversion", ejected=ejected)
-    
-    def invert(self, force: float = 1.0) -> bool:
-        """
-        Инверсия матки (внутрь) - редкое но опасное состояние.
-        При этом отверстия труб также видны, но направлены внутрь.
-        """
-        if self.state != UterusState.NORMAL:
-            return False
-        
-        self.state = UterusState.INVERTED
-        self.walls.stretch_ratio = 2.0
-        
-        # Трубы втянуты, но их отверстия видны
-        for tube in self.tubes:
-            if tube:
-                tube.current_stretch = 2.5
-        
-        self._emit("inversion", force=force)
-        return True
-    
-    def reduce_prolapse(self, amount: float) -> bool:
-        """
-        Попытка уменьшить пролапс (ручная репозиция, лечение).
-        """
-        if self.state == UterusState.EVERTED:
-            # Полное выворачивание требует медицинского вмешательства
-            if amount < 0.5:
-                return False
-            # Успешная репозиция
-            self.state = UterusState.PROLAPSED
-        
-        self.descent_position = max(0.0, self.descent_position - amount)
-        self.prolapse_stage = self.descent_position
-        
-        # Вправление яичников
-        for ovary in self.ovaries:
-            if ovary and ovary.state in (OvaryState.PROLAPSED, OvaryState.EVERTED):
-                ovary.reposition(amount * 0.5)
-        
-        # Восстановление труб
-        for tube in self.tubes:
-            if tube:
-                tube.current_stretch = max(1.0, tube.current_stretch - amount)
-                if tube.state == FallopianTubeState.EVERTED_WITH_OVARY:
-                    tube.state = FallopianTubeState.PROLAPSED
-        
-        if self.descent_position < 0.1:
-            self.state = UterusState.NORMAL
-            self.cervix.state = CervixState.CLOSED
-        
-        return True
-    
-    # ======================
-    # TICK & UPDATE
-    # ======================
-    
-    def tick(self, dt: float = 1.0):
-        """Обновление состояния."""
-        # Восстановление стенок
-        self.walls.recover(dt)
-        
-        # Обновление яичников
-        for ovary in self.ovaries:
-            if ovary:
-                # Гормональная функция
-                ovary.hormone_production = max(0.0, ovary.hormone_production - 0.001 * dt)
-                
-                # Кровоснабжение вывернутых яичников ухудшается
-                if ovary.is_everted:
-                    ovary.blood_supply = max(0.3, ovary.blood_supply - 0.01 * dt)
-                    if ovary.blood_supply < 0.5:
-                        ovary.state = OvaryState.TORSION
-        
-        # Естественное сокращение шейки
-        if self.cervix.state not in (CervixState.EVERTED, CervixState.FULLY_OPEN):
-            self.cervix.contract()
-        
-        # При выворачивании - поддержание состояния
-        if self.state == UterusState.EVERTED:
-            # Постепенное ухудшение без лечения
-            self.ligament_integrity = max(0.1, self.ligament_integrity - 0.001 * dt)
-            self.walls.integrity = max(0.3, self.walls.integrity - 0.001 * dt)
-        
-        # Проверка на спонтанный пролапс
-        elif self.state == UterusState.NORMAL:
-            risk = self.calculate_prolapse_risk()
-            if risk > 0.8:
-                self._progress_prolapse(0.1)
-    
-    # ======================
-    # UTILITY
-    # ======================
-    
+
     def __str__(self) -> str:
-        state_emoji = {
-            UterusState.NORMAL: "🟢",
-            UterusState.DESCENDED: "🟡",
-            UterusState.PROLAPSED: "🟠",
-            UterusState.EVERTED: "🔴",
-            UterusState.INVERTED: "⚫"
-        }.get(self.state, "⚪")
-        
-        contents = []
-        if self.fluids:
-            total_fluid = sum(self.fluids.values())
-            contents.append(f"{total_fluid:.0f}ml fluid")
-        if self.inserted_objects:
-            contents.append(f"{len(self.inserted_objects)} objects")
-        
-        contents_str = f" ({', '.join(contents)})" if contents else " (empty)"
-        
-        # Базовая информация
-        lines = [
-            f"{state_emoji} Uterus [{self.state.name}]",
-            f"   Volume: {self.current_volume:.0f}ml{contents_str}",
-            f"   Descent: {self.descent_position:.0%}",
-            f"   Cervix: {self.cervix.state.name} ({self.cervix.current_dilation:.1f}cm)",
-            f"   Walls: stretch={self.walls.stretch_ratio:.1f}x, fatigue={self.walls.fatigue:.0%}"
-        ]
-        
-        # При выворачивании - детальное описание
-        if self.is_everted:
-            lines.append(f"\n{self.external_description}")
-        
-        # Информация о трубах и яичниках
-        lines.append(f"\n   Fallopian Tubes:")
-        for tube in self.tubes:
-            if tube:
-                lines.append(f"      {tube}")
-        
-        lines.append(f"\n   Ovaries:")
-        for ovary in self.ovaries:
-            if ovary:
-                lines.append(f"      {ovary}")
-        
-        return "\n".join(lines)
-    
-         
+        return (
+            f"Uterus({self.state.name}, "
+            f"inflation={self.inflation_status.value}, "
+            f"filled={self.uterus_filled:.1f}ml, "
+            f"tubes={self.tubes_filled:.1f}ml, "
+            f"ovaries={self.ovaries_filled:.1f}ml)"
+        )
+
+
 @dataclass
 class UterusSystem:
-    """Система маток для тела (поддержка множественных маток для фантастики)."""
-    
+    """Система маток для тела."""
     uteri: List[Uterus] = field(default_factory=list)
-    
+
     def __post_init__(self):
         if not self.uteri:
             self.uteri.append(Uterus())
-    
+
     @property
     def primary(self) -> Optional[Uterus]:
-        """Основная матка."""
         return self.uteri[0] if self.uteri else None
-    
+
     def add_uterus(self, uterus: Uterus) -> int:
-        """Добавить дополнительную матку."""
         self.uteri.append(uterus)
         return len(self.uteri) - 1
-    
+
     def tick(self, dt: float = 1.0):
-        """Обновление всех маток."""
         for uterus in self.uteri:
-            uterus.tick(dt)
-    
+            uterus.tick(dt=dt)
+
     def __iter__(self):
         return iter(self.uteri)
-    
+
     def __len__(self):
         return len(self.uteri)

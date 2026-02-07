@@ -135,80 +135,121 @@ def cmd_help(args: List[str], ctx: CommandContext):
     if topic == "uterus":
         help_text = """
 [bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
-[bold cyan]║           UTERUS / OVARIES / FALLOPIAN TUBES                 ║[/bold cyan]
+[bold cyan]║         UTERUS - INFLATION & FLUID SYSTEM                    ║[/bold cyan]
 [bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
 
-[bold yellow]🌸 UTERUS COMMANDS (uterus / ut / womb)[/bold yellow]
+[bold yellow]💧 FLUID COMMANDS[/bold yellow]
 
   [green]uterus[/green]                    - Show full uterus system status
-  [green]uterus status [idx][/green]       - Detailed view of specific uterus
+  [green]uterus status [idx][/green]       - Detailed status with fluid distribution
   [green]uterus add_fluid <type> <amount> [idx][/green]
-                            - Add fluid (milk, cum, water, honey, oil)
-  [green]uterus drain [idx][/green]       - Remove all fluids
-  [green]uterus dilate [amount][/green]  - Dilate cervix (cm)
-  [green]uterus contract[/green]         - Contract cervix
-  [green]uterus insert <object>[/green]  - Insert object (egg, ball, beads, speculum)
-  [green]uterus remove [idx][/green]     - Remove object by index
+                            - Add fluid (auto-distributes to tubes/ovaries)
+                            Types: milk, cum, water, honey, oil, blood
+  [green]uterus drain [idx][/green]       - Drain ALL fluid from entire system
+  [green]uterus remove <amount> [idx][/green]
+                            - Remove specific amount from system
 
-[bold red]⚠️ PROLAPSE & EVERSION COMMANDS[/bold red]
+[bold yellow]🎈 INFLATION COMMANDS[/bold yellow]
 
-  [green]uterus strain [force][/green]     - Apply strain (0.0-1.0), risk of prolapse
-  [green]uterus evert[/green]            - [red]FORCE COMPLETE EVERSION[/red]
+  [green]uterus inflate <ratio> [idx][/green]
+                            - Inflate uterus (1.0=normal, 2.0=2x size, max 4.0)
+  [green]uterus deflate [idx][/green]     - Reduce inflation (recovery)
+  [green]uterus inflation [idx][/green]   - Show inflation details
+                            (skin tension, stretch marks risk, permanent stretch)
+
+[bold magenta]Inflation Status Progression:[/bold magenta]
+  NORMAL → STRETCHED → DISTENDED → HYPERDISTENDED → RUPTURE_RISK → RUPTURED
+
+[bold yellow]🌊 FALLOPIAN TUBE COMMANDS[/bold yellow]
+
+  [green]uterus tube_inflate <side> <ratio> [idx][/green]
+                            - Inflate specific tube (left/right)
+  [green]uterus tube_stretch <side> <ratio> [idx][/green]
+                            - Stretch tube length
+  [green]uterus tube_status [idx][/green]
+                            - Show tube status (fluid, inflation, stretch)
+
+[bold yellow]🥚 OVARY COMMANDS[/bold yellow]
+
+  [green]uterus ovary_fill <side> <amount> [idx][/green]
+                            - Fill ovary directly through tube
+  [green]uterus ovary_drain <side> [idx][/green]
+                            - Drain ovary fluid
+
+[bold yellow]🔧 CERVIX & OBJECTS[/bold yellow]
+
+  [green]uterus dilate <amount> [idx][/green]
+                            - Dilate cervix (allows leakage!)
+  [green]uterus contract [idx][/green]    - Contract cervix (stops leakage)
+  [green]uterus insert <type> [idx][/green]
+                            - Insert object (egg, ball, beads, speculum)
+  [green]uterus remove_obj [idx] [obj_idx][/green]
+                            - Remove object by index
+  [green]uterus objects [idx][/green]     - List all inserted objects
+
+[bold red]⚠️ PROLAPSE & EVERSION[/bold red]
+
+  [green]uterus strain [force] [idx][/green]
+                            - Apply strain (0.0-1.0), risk of prolapse
+  [green]uterus evert [idx][/green]       - [red]FORCE COMPLETE EVERSION[/red]
                             (ejects all contents, tubes visible externally)
-  [green]uterus invert[/green]           - Invert uterus (internal, tubes visible inside)
-  [green]uterus reduce [amount][/green]    - Try to reduce prolapse (manual reposition)
+  [green]uterus reduce [amount] [idx][/green]
+                            - Try to reduce prolapse
+  [green]uterus risk [idx][/green]        - Show detailed prolapse risk factors
 
-[bold yellow]🥚 OVARY COMMANDS (ovary / ov / ovaries)[/bold yellow]
+[bold yellow]⚙️ SIMULATION CONTROL[/bold yellow]
 
-  [green]ovary[/green]                    - Show all ovaries
-  [green]ovary status <side>[/green]     - Show specific ovary (left/right)
-  [green]ovary enlarge [amt] [side][/green] - Enlarge follicles
-  [green]ovary rupture [idx] [side][/green] - Rupture follicle (ovulation)
-  [green]ovary ovulate [idx] [side][/green] - Trigger ovulation
-
-[bold red]⚠️ OVARY PROLAPSE[/bold red]
-
-  [green]ovary evert [deg] [side][/green]  - [red]EVERT OVARY externally[/red]
-  [green]ovary reposition [amt] [side][/green] - Try to reposition ovary
-
-[bold yellow]🌊 FALLOPIAN TUBE COMMANDS (tube / ft / tubes)[/bold yellow]
-
-  [green]tube[/green]                     - Show all tubes
-  [green]tube status <side>[/green]      - Show specific tube
-  [green]tube stretch <ratio> [side][/green] - Stretch tube (1.0-3.0x)
-  [green]tube add_fluid <amt> [side][/green] - Add fluid to tube
-  [green]tube clear [side][/green]       - Clear tube contents
-
-[bold red]⚠️ TUBE EVERSION (requires stretched tube + visible openings)[/bold red]
-
-  [green]tube evert <side>[/green]       - [red]EVERT TUBE WITH OVARY[/red]
-                            (requires: uterus inverted/everted + stretch >2.0)
-  [green]tube reposition [side][/green]  - Reposition tube
+  [green]uterus tick [dt] [idx][/green]    - Manual update tick (for testing)
+  [green]uterus peristalsis <strength> [idx][/green]
+                            - Set peristalsis strength (0.0-1.0)
+                            (pushes fluid from uterus to tubes over time)
+  [green]uterus backflow <on/off> [idx][/green]
+                            - Enable/disable backflow from ovaries
 
 [bold magenta]╔══════════════════════════════════════════════════════════════╗[/bold magenta]
-[bold magenta]║                    MECHANICS GUIDE                           ║[/bold magenta]
+[bold magenta]║                    FLUID DISTRIBUTION                        ║[/bold magenta]
 [bold magenta]╚══════════════════════════════════════════════════════════════╝[/bold magenta]
 
-[yellow]Prolapse Risk Factors:[/yellow]
-  • Weak ligaments (ligament_integrity)
-  • Weak pelvic floor
-  • Overstretched walls
-  • High internal pressure (fluids/objects)
-  • Tissue fatigue
+[yellow]Auto-distribution on add_fluid:[/yellow]
+  • 70% stays in uterus cavity
+  • 30% goes to fallopian tubes (split between left/right)
+  • From tubes: auto-transfer to ovaries when tube >80% full
+  • Backflow: returns to uterus when ovaries overfilled (if enabled)
 
-[yellow]Eversion Requirements:[/yellow]
-  1. Uterus must be in EVERTED or INVERTED state
-  2. Fallopian tubes must be stretched (>2.0x)
-  3. Then: [cyan]tube evert <side>[/cyan] to pull ovary out
+[yellow]Peristalsis:[/yellow]
+  • Natural movement pushing fluid uterus→tubes
+  • Set strength: uterus peristalsis 0.8
+  • Higher = faster fluid transfer
 
-[yellow]States:[/yellow]
-  • NORMAL → DESCENDED → PROLAPSED → [red]EVERTED[/red]
-  • INVERTED (special state, tubes visible internally)
+[yellow]Inflation Mechanics:[/yellow]
+  • Increases capacity of uterus and tubes
+  • Can become permanent (plasticity factor)
+  • Risk of stretch marks at high inflation
+  • Skin tension increases with inflation
+
+[yellow]Leakage (like breast nipples):[/yellow]
+  • Occurs in LEAKING state through dilated cervix
+  • Rate depends on cervix dilation and pressure
+  • High viscosity fluids leak slower
+
+[bold magenta]╔══════════════════════════════════════════════════════════════╗[/bold magenta]
+[bold magenta]║                    STATE PROGRESSIONS                        ║[/bold magenta]
+[bold magenta]╚══════════════════════════════════════════════════════════════╝[/bold magenta]
+
+[yellow]Fill States:[/yellow]
+  EMPTY → NORMAL → TENSE → OVERPRESSURED → LEAKING
+
+[yellow]Inflation States:[/yellow]
+  NORMAL → STRETCHED → DISTENDED → HYPERDISTENDED → RUPTURE_RISK → RUPTURED
+
+[yellow]Prolapse States:[/yellow]
+  NORMAL → DESCENDED → PROLAPSED → [red]EVERTED[/red]
 
 [yellow]Ovary States:[/yellow]
-  • NORMAL → ENLARGED → PROLAPSED → [red]EVERTED[/red] → TORSION (ischemia!)
+  NORMAL → ENLARGED → PROLAPSED → [red]EVERTED[/red] → TORSION (ischemia!)
         """
         console.print(Panel(help_text, title="[bold]Uterus System Help[/bold]", border_style="bright_magenta"))
+
 
     elif topic == "breasts":
         help_text = """
@@ -298,6 +339,96 @@ def cmd_help(args: List[str], ctx: CommandContext):
   • Uterus system (if present)
         """
         console.print(Panel(help_text, title="[bold]General Commands Help[/bold]", border_style="bright_green"))
+
+    elif topic == "uterus":
+        help_text = """
+[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
+[bold cyan]║         UTERUS - INFLATION & FLUID SYSTEM                    ║[/bold cyan]
+[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
+
+[bold yellow]💧 FLUID COMMANDS[/bold yellow]
+
+  [green]uterus add_fluid <type> <amount> [idx][/green]
+                            - Add fluid (auto-distributes to tubes/ovaries)
+  [green]uterus drain [idx][/green]       - Drain ALL fluid from system
+  [green]uterus remove <amount> [idx][/green]
+                            - Remove specific amount
+  [green]uterus status [idx][/green]       - Show detailed status with fluid distribution
+
+[bold yellow]🎈 INFLATION COMMANDS[/bold yellow]
+
+  [green]uterus inflate <ratio> [idx][/green]
+                            - Inflate uterus (1.0=normal, 2.0=2x size)
+  [green]uterus deflate [idx][/green]     - Reduce inflation (recovery)
+  [green]uterus inflation [idx][/green]   - Show inflation details
+
+[bold magenta]Inflation Status:[/bold magenta]
+  NORMAL → STRETCHED → DISTENDED → HYPERDISTENDED → RUPTURE_RISK → RUPTURED
+
+[bold yellow]🌊 TUBE COMMANDS[/bold yellow]
+
+  [green]uterus tube_inflate <side> <ratio> [idx][/green]
+                            - Inflate specific tube (left/right)
+  [green]uterus tube_stretch <side> <ratio> [idx][/green]
+                            - Stretch tube length
+  [green]uterus tube_status [idx][/green]
+                            - Show tube status
+
+[bold yellow]🥚 OVARY COMMANDS[/bold yellow]
+
+  [green]uterus ovary_fill <side> <amount> [idx][/green]
+                            - Fill ovary directly
+  [green]uterus ovary_drain <side> [idx][/green]
+                            - Drain ovary
+
+[bold yellow]🔧 CERVIX & OBJECTS[/bold yellow]
+
+  [green]uterus dilate <amount> [idx][/green]
+                            - Dilate cervix
+  [green]uterus contract [idx][/green]    - Contract cervix
+  [green]uterus insert <type> [idx][/green]
+                            - Insert object (egg, ball, beads, speculum)
+  [green]uterus remove_obj [idx] [obj_idx][/green]
+                            - Remove object
+  [green]uterus objects [idx][/green]     - List inserted objects
+
+[bold yellow]⚠️ PROLAPSE COMMANDS[/bold yellow]
+
+  [green]uterus strain [force] [idx][/green]
+                            - Apply strain
+  [green]uterus evert [idx][/green]       - Force eversion
+  [green]uterus reduce [amount] [idx][/green]
+                            - Reduce prolapse
+  [green]uterus risk [idx][/green]        - Show prolapse risk
+
+[bold yellow]⚙️ SIMULATION[/bold yellow]
+
+  [green]uterus tick [dt] [idx][/green]    - Manual tick
+  [green]uterus peristalsis <strength> [idx][/green]
+                            - Set peristalsis (0.0-1.0)
+  [green]uterus backflow <on/off> [idx][/green]
+                            - Enable/disable backflow
+
+[bold magenta]╔══════════════════════════════════════════════════════════════╗[/bold magenta]
+[bold magenta]║                    FLUID DISTRIBUTION                        ║[/bold magenta]
+[bold magenta]╚══════════════════════════════════════════════════════════════╝[/bold magenta]
+
+[yellow]Auto-distribution:[/yellow]
+  • 70% stays in uterus
+  • 30% goes to fallopian tubes
+  • From tubes: auto-transfer to ovaries when >80% full
+  • Backflow: returns to uterus when ovaries overfilled
+
+[yellow]Peristalsis:[/yellow]
+  • Pushes fluid from uterus to tubes over time
+  • Set with: uterus peristalsis <0.0-1.0>
+
+[yellow]Inflation mechanics:[/yellow]
+  • Increases capacity of uterus and tubes
+  • Can become permanent (plasticity)
+  • Risk of stretch marks at high inflation
+        """
+        console.print(Panel(help_text, title="[bold]Uterus System Help[/bold]", border_style="bright_magenta"))
 
     else:
         console.print(f"[yellow]Unknown help topic: {topic}[/yellow]")
@@ -597,7 +728,7 @@ def cmd_create_roxy(args: List[str], ctx: CommandContext):
 
 
 def cmd_uterus(args: List[str], ctx: CommandContext):
-    """Управление маткой (uterus)."""
+    """Управление маткой (uterus) - система инфляции и жидкости."""
     if not ctx.active_body:
         console.print("[red]No body selected[/red]")
         return
@@ -609,32 +740,25 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
     system = ctx.active_body.uterus_system
 
     if not args:
-        # Показать статус
+        # Показать статус всех маток
         from body_sim.ui.uterus_render import UterusRenderer
         renderer = UterusRenderer()
         console.print(renderer.render_full_system(system))
         return
 
-    # Отладка
-    console.print(f"[dim]DEBUG: args={args}[/dim]")
-
     action = args[0].lower()
+    args = args[1:]  # Убираем action
 
-    # Убираем action из args (создаем копию!)
-    args = list(args[1:])
-
-    console.print(f"[dim]DEBUG: action={action}, args after pop={args}[/dim]")
-
-    # Определяем индекс матки - только если последний аргумент число 0-9
+    # Определяем индекс матки
     uterus_idx = 0
     if args:
         try:
             potential_idx = int(args[-1])
             if 0 <= potential_idx <= 9 and len(system.uteri) > potential_idx:
                 uterus_idx = potential_idx
-                args = args[:-1]  # Удаляем индекс из args
+                args = args[:-1]
         except ValueError:
-            pass  # Последний аргумент не число, используем индекс 0
+            pass
 
     if uterus_idx >= len(system.uteri):
         console.print(f"[red]Invalid uterus index: {uterus_idx}[/red]")
@@ -647,30 +771,180 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
         renderer = UterusRenderer()
         console.print(renderer.render_uterus_detailed(uterus, f"Uterus #{uterus_idx}"))
 
+        # Дополнительная инфо о жидкости и инфляции
+        console.print(f"\n[bold cyan]Fluid Distribution:[/bold cyan]")
+        console.print(f"  [dim]Uterus:[/dim] {uterus.uterus_filled:.1f}ml")
+        console.print(f"  [dim]Tubes:[/dim] {uterus.tubes_filled:.1f}ml")
+        console.print(f"  [dim]Ovaries:[/dim] {uterus.ovaries_filled:.1f}ml")
+        console.print(f"  [dim]Total:[/dim] {uterus.filled:.1f}ml")
+
+        console.print(f"\n[bold magenta]Inflation:[/bold magenta]")
+        console.print(f"  [dim]Status:[/dim] {uterus.inflation_status.value}")
+        console.print(f"  [dim]Ratio:[/dim] {uterus.inflation_ratio:.2f}x")
+        console.print(f"  [dim]Wall stretch:[/dim] {uterus.walls.stretch_ratio:.2f}x")
+
+        if hasattr(uterus.walls, 'is_permanently_stretched') and uterus.walls.is_permanently_stretched:
+            console.print("  [yellow]⚠️ Permanently stretched![/yellow]")
+
     elif action == "add_fluid":
         if len(args) < 2:
             console.print("[red]Usage: uterus add_fluid <type> <amount> [idx][/red]")
+            console.print("Types: milk, cum, water, honey, oil, blood")
             return
         from body_sim.core.enums import FluidType
-        fluid_type = FluidType[args[0].upper()]
+        try:
+            fluid_type = FluidType[args[0].upper()]
+        except KeyError:
+            console.print(f"[red]Unknown fluid type: {args[0]}[/red]")
+            return
         amount = float(args[1])
         added = uterus.add_fluid(fluid_type, amount)
-        console.print(f"[cyan]Added {added:.1f}ml of {args[0].upper()} to uterus #{uterus_idx}[/cyan]")
+
+        console.print(f"[cyan]Added {added:.1f}ml of {args[0].upper()}[/cyan]")
+        console.print(f"[dim]Distribution: Uterus {uterus.uterus_filled:.1f}ml | "
+                     f"Tubes {uterus.tubes_filled:.1f}ml | Ovaries {uterus.ovaries_filled:.1f}ml[/dim]")
+
+        if uterus.inflation_status.value != "normal":
+            console.print(f"[yellow]Inflation: {uterus.inflation_status.value.upper()}[/yellow]")
 
     elif action == "drain":
-        removed = uterus.remove_fluid()
+        removed = uterus.drain_all()
         total = sum(removed.values())
-        console.print(f"[yellow]Drained {total:.1f}ml from uterus #{uterus_idx}[/yellow]")
+        if total > 0:
+            console.print(f"[yellow]Drained {total:.1f}ml from entire system[/yellow]")
+            for ft, amt in removed.items():
+                console.print(f"  [dim]- {ft.name}: {amt:.1f}ml[/dim]")
+        else:
+            console.print("[dim]System was empty[/dim]")
+
+    elif action == "remove":
+        amount = float(args[0]) if args else 10.0
+        removed = uterus.remove_fluid(amount)
+        console.print(f"[yellow]Removed {removed:.1f}ml from system[/yellow]")
 
     elif action == "dilate":
         amount = float(args[0]) if args else 1.0
+        old_dilation = uterus.cervix.current_dilation
         uterus.cervix.dilate(amount)
-        console.print(f"[magenta]Dilated cervix to {uterus.cervix.current_dilation:.1f}cm[/magenta]")
+        console.print(f"[magenta]Cervix: {old_dilation:.1f}cm → {uterus.cervix.current_dilation:.1f}cm[/magenta]")
 
     elif action == "contract":
         uterus.cervix.contract()
         console.print("[green]Cervix contracted[/green]")
 
+    # ============ ИНФЛЯЦИЯ ============
+    elif action == "inflate":
+        if not args:
+            console.print("[red]Usage: uterus inflate <ratio> [idx][/red]")
+            console.print("Example: uterus inflate 2.0  (2x normal size)")
+            return
+        ratio = float(args[0])
+        success = uterus.inflate(ratio)
+        if success:
+            console.print(f"[bold magenta]🔵 Uterus inflated to {ratio:.1f}x[/bold magenta]")
+            info = uterus.get_inflation_details()
+            console.print(f"[dim]Skin tension: {info['skin_tension']:.1%} | "
+                         f"Stretch marks risk: {info['stretch_marks_risk']:.1%}[/dim]")
+            if info['is_permanent']:
+                console.print("[yellow]⚠️ Permanent stretching occurred![/yellow]")
+        else:
+            console.print("[red]Cannot inflate further - risk of rupture![/red]")
+
+    elif action == "deflate":
+        """Уменьшить инфляцию (восстановление)."""
+        uterus.walls.recover(10.0)  # Ускоренное восстановление
+        if uterus.inflation_ratio > 1.0:
+            old_ratio = uterus.inflation_ratio
+            # Постепенное уменьшение
+            new_ratio = max(1.0, uterus.inflation_ratio * 0.8)
+            uterus.inflate(new_ratio)
+            console.print(f"[green]Deflated: {old_ratio:.2f}x → {new_ratio:.2f}x[/green]")
+        else:
+            console.print("[dim]Already at normal size[/dim]")
+
+    elif action == "inflation":
+        """Показать детали инфляции."""
+        info = uterus.get_inflation_details()
+        console.print(f"[bold cyan]Inflation Details:[/bold cyan]")
+        console.print(f"  Status: {uterus.inflation_status.value}")
+        console.print(f"  Uterus ratio: {info['uterus_ratio']:.2f}x")
+        console.print(f"  Wall stretch: {info['wall_stretch']:.2f}x")
+        console.print(f"  Total stretch: {info['total_stretch']:.2f}x")
+        console.print(f"  Skin tension: {info['skin_tension']:.1%}")
+        console.print(f"  Stretch marks risk: {info['stretch_marks_risk']:.1%}")
+        console.print(f"  Permanent: {info['is_permanent']}")
+
+    # ============ ТРУБЫ ============
+    elif action == "tube_inflate":
+        if len(args) < 2:
+            console.print("[red]Usage: uterus tube_inflate <side> <ratio> [idx][/red]")
+            return
+        side = args[0].lower()
+        ratio = float(args[1])
+        success = uterus.inflate_tube(side, ratio)
+        if success:
+            tube = uterus.left_tube if side == "left" else uterus.right_tube
+            console.print(f"[magenta]{side.upper()} tube inflated to {ratio:.1f}x[/magenta]")
+            console.print(f"[dim]Status: {tube.inflation_status.value} | "
+                         f"Fluid: {tube.contained_fluid:.1f}ml[/dim]")
+        else:
+            console.print("[red]Cannot inflate tube further![/red]")
+
+    elif action == "tube_stretch":
+        if len(args) < 2:
+            console.print("[red]Usage: uterus tube_stretch <side> <ratio> [idx][/red]")
+            return
+        side = args[0].lower()
+        ratio = float(args[1])
+        success = uterus.stretch_tube(side, ratio)
+        if success:
+            tube = uterus.left_tube if side == "left" else uterus.right_tube
+            console.print(f"[yellow]{side.upper()} tube stretched to {ratio:.1f}x[/yellow]")
+            console.print(f"[dim]Length: {tube.stretched_length:.1f}cm | "
+                         f"Can prolapse ovary: {tube.can_prolapse_ovary}[/dim]")
+        else:
+            console.print("[red]Tube blocked or overstretched![/red]")
+
+    elif action == "tube_status":
+        """Показать статус труб."""
+        console.print(f"[bold cyan]Fallopian Tubes:[/bold cyan]")
+        for tube in uterus.tubes:
+            if tube:
+                console.print(f"\n[bold]{tube.side.upper()}:[/bold]")
+                console.print(f"  Length: {tube.current_length:.1f}cm (stretch: {tube.current_stretch:.1f}x)")
+                console.print(f"  Diameter: {tube.current_diameter:.1f}cm (inflate: {tube.inflation_ratio:.1f}x)")
+                console.print(f"  Status: {tube.inflation_status.value}")
+                console.print(f"  Fluid: {tube.contained_fluid:.1f}ml / {tube.max_fluid_capacity:.1f}ml")
+                if tube.ovary:
+                    console.print(f"  → Ovary: {tube.ovary.fluid_content:.1f}ml")
+
+    # ============ ЯИЧНИКИ ============
+    elif action == "ovary_fill":
+        """Наполнить яичник напрямую (через трубу)."""
+        if len(args) < 2:
+            console.print("[red]Usage: uterus ovary_fill <side> <amount> [idx][/red]")
+            return
+        side = args[0].lower()
+        amount = float(args[1])
+        tube = uterus.left_tube if side == "left" else uterus.right_tube
+        if tube and tube.ovary:
+            added = tube.ovary.add_fluid(amount)
+            console.print(f"[cyan]Added {added:.1f}ml to {side} ovary[/cyan]")
+            console.print(f"[dim]Total: {tube.ovary.fluid_content:.1f}ml / {tube.ovary.max_fluid_capacity:.1f}ml[/dim]")
+        else:
+            console.print("[red]Ovary not found[/red]")
+
+    elif action == "ovary_drain":
+        """Опустошить яичник."""
+        side = args[0].lower() if args else "left"
+        ovary = uterus.left_ovary if side == "left" else uterus.right_ovary
+        if ovary:
+            removed = ovary.remove_fluid(ovary.fluid_content)
+            console.print(f"[yellow]Drained {removed:.1f}ml from {side} ovary[/yellow]")
+        else:
+            console.print("[red]Ovary not found[/red]")
+
+    # ============ ПРОЛАПС ============
     elif action == "strain":
         force = float(args[0]) if args else 0.5
         result = uterus.apply_strain(force)
@@ -680,9 +954,10 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
             console.print("[green]Strain applied, no prolapse[/green]")
 
     elif action == "evert":
-        if uterus.state != UterusState.EVERTED:
+        if not uterus.is_everted:
             uterus._complete_eversion()
-            console.print(f"[bold red]🔴 UTERUS EVERTED! All contents ejected.[/bold red]")
+            console.print(f"[bold red]🔴 UTERUS #{uterus_idx} EVERTED![/bold red]")
+            console.print("[red]All contents ejected. Internal surface exposed.[/red]")
         else:
             console.print("[yellow]Already everted[/yellow]")
 
@@ -694,20 +969,26 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
         else:
             console.print("[red]Failed to reduce - requires medical intervention[/red]")
 
-    elif action == "invert":
-        force = float(args[0]) if args else 1.0
-        success = uterus.invert(force)
-        if success:
-            console.print(f"[red]Uterus inverted! Tube openings visible internally.[/red]")
-        else:
-            console.print("[red]Cannot invert - uterus not in normal state[/red]")
+    elif action == "risk":
+        """Показать риск пролапса."""
+        risk = uterus.calculate_prolapse_risk()
+        console.print(f"[bold]Prolapse Risk: {risk:.1%}[/bold]")
+        console.print(f"[dim]Factors:[/dim]")
+        console.print(f"  Ligament integrity: {uterus.ligament_integrity:.2f}")
+        console.print(f"  Pelvic floor: {uterus.pelvic_floor_strength:.2f}")
+        console.print(f"  Wall fatigue: {uterus.walls.fatigue:.2f}")
+        console.print(f"  Inflation: {uterus.inflation_ratio:.2f}x")
+        if risk > 0.7:
+            console.print("[red]⚠️ HIGH RISK![/red]")
 
+    # ============ ОБЪЕКТЫ ============
     elif action == "insert":
         if not args:
             console.print("[red]Usage: uterus insert <object_type>[/red]")
+            console.print("Types: egg, ball, beads, speculum")
             return
         obj_type = args[0].lower()
-        # Создаем простой объект для вставки
+
         class SimpleObject:
             def __init__(self, name, volume, diameter):
                 self.name = name
@@ -730,21 +1011,55 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
         obj = objects[obj_type]
         success = uterus.insert_object(obj)
         if success:
-            console.print(f"[green]Inserted {obj.name} into uterus #{uterus_idx}[/green]")
+            console.print(f"[green]Inserted {obj.name} ({obj.volume}ml)[/green]")
+            fill_pct = (uterus.uterus_filled / uterus.current_volume * 100) if uterus.current_volume > 0 else 0
+            console.print(f"[dim]Uterus fill: {fill_pct:.0f}%[/dim]")
         else:
             console.print("[red]Failed to insert - cervix closed or no space[/red]")
 
-    elif action == "remove":
+    elif action == "remove_obj":
         idx = int(args[0]) if args else 0
         obj = uterus.remove_object(idx)
         if obj:
-            console.print(f"[green]Removed {obj.name} from uterus[/green]")
+            console.print(f"[green]Removed {obj.name}[/green]")
         else:
             console.print("[red]No object at that index[/red]")
 
+    elif action == "objects":
+        """Показать вставленные объекты."""
+        if uterus.inserted_objects:
+            console.print(f"[bold]Inserted objects:[/bold]")
+            for i, obj in enumerate(uterus.inserted_objects):
+                vol = getattr(obj, 'volume', 0) or getattr(obj, 'effective_volume', 0)
+                console.print(f"  {i}: {obj.name} ({vol}ml)")
+        else:
+            console.print("[dim]No objects inserted[/dim]")
+
+    # ============ СИМУЛЯЦИЯ ============
+    elif action == "tick":
+        dt = float(args[0]) if args else 1.0
+        result = uterus.tick(dt=dt)
+        console.print(f"[dim]Tick: {result}[/dim]")
+
+    elif action == "peristalsis":
+        """Установить силу перистальтики."""
+        strength = float(args[0]) if args else 0.5
+        uterus.peristalsis_strength = max(0.0, min(1.0, strength))
+        console.print(f"[cyan]Peristalsis strength: {uterus.peristalsis_strength:.1%}[/cyan]")
+
+    elif action == "backflow":
+        """Включить/выключить обратный поток."""
+        enable = args[0].lower() in ("on", "true", "1", "yes") if args else True
+        uterus.backflow_enabled = enable
+        status = "enabled" if enable else "disabled"
+        console.print(f"[cyan]Backflow {status}[/cyan]")
+
     else:
         console.print(f"[red]Unknown action: {action}[/red]")
-        console.print("Actions: status, add_fluid, drain, dilate, contract, strain, evert, reduce, invert, insert, remove")
+        console.print("Actions: status, add_fluid, drain, remove, dilate, contract")
+        console.print("         inflate, deflate, inflation, tube_inflate, tube_stretch, tube_status")
+        console.print("         ovary_fill, ovary_drain, strain, evert, reduce, risk")
+        console.print("         insert, remove_obj, objects, tick, peristalsis, backflow")
 
 def cmd_ovary(args: List[str], ctx: CommandContext):
     """Управление яичниками (ovaries)."""
