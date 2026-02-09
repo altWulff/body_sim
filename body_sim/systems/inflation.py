@@ -6,6 +6,7 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 import math
+import cmath
 
 if TYPE_CHECKING:
     from body_sim.anatomy.breast import Breast
@@ -64,7 +65,7 @@ class InflationSystem:
         
         if breast.areola:
             base_diameter = breast.areola.base_diameter
-            target_diameter = base_diameter * math.sqrt(self.stretch_ratio)
+            target_diameter = base_diameter * cmath.sqrt(self.stretch_ratio)
             breast.areola._current_diameter = target_diameter
 
     def force_inflate(self, breast: 'Breast', amount_ml: float) -> float:

@@ -8,10 +8,7 @@ from dataclasses import dataclass
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich import box  # Импортируем box модули
-
-from body_sim.characters.roxy_migurdia import register_roxy_command
-from body_sim.characters.uterus_reactions import integrate_with_tick
+from rich import box
 
 console = Console()
 
@@ -92,7 +89,7 @@ class CommandContext:
     active_body_idx: int = 0
     running: bool = True
     last_result: Any = None
-    registry: 'CommandRegistry' = None  # Добавлено для доступа к реестру
+    registry: 'CommandRegistry' = None
 
     @property
     def active_body(self):
@@ -133,8 +130,8 @@ def cmd_help(args: List[str], ctx: CommandContext):
 
     topic = args[0].lower()
 
-    if topic == "uterus":
-        help_text = """
+    help_topics = {
+        "uterus": """
 [bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
 [bold cyan]║         UTERUS - INFLATION & FLUID SYSTEM                    ║[/bold cyan]
 [bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
@@ -249,12 +246,9 @@ def cmd_help(args: List[str], ctx: CommandContext):
 
 [yellow]Ovary States:[/yellow]
   NORMAL → ENLARGED → PROLAPSED → [red]EVERTED[/red] → TORSION (ischemia!)
-        """
-        console.print(Panel(help_text, title="[bold]Uterus System Help[/bold]", border_style="bright_magenta"))
+        """,
 
-
-    elif topic == "breasts":
-        help_text = """
+        "breasts": """
 [bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
 [bold cyan]║                    BREAST COMMANDS                           ║[/bold cyan]
 [bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
@@ -278,11 +272,9 @@ def cmd_help(args: List[str], ctx: CommandContext):
                             - Remove object from breast
 
 [bold magenta]States:[/bold magenta] EMPTY → NORMAL → TENSE → [red]OVERPRESSURED[/red] → [blue]LEAKING[/blue]
-        """
-        console.print(Panel(help_text, title="[bold]Breast System Help[/bold]", border_style="bright_cyan"))
+        """,
 
-    elif topic == "genitals":
-        help_text = """
+        "genitals": """
 [bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
 [bold cyan]║                   GENITAL COMMANDS                           ║[/bold cyan]
 [bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
@@ -307,11 +299,9 @@ def cmd_help(args: List[str], ctx: CommandContext):
 
 [bold magenta]Vagina Types:[/bold magenta] human, sinuous, deepcave, ribbed, tentacled,
                demonic, plant, slime
-        """
-        console.print(Panel(help_text, title="[bold]Genitals Help[/bold]", border_style="bright_red"))
+        """,
 
-    elif topic == "general":
-        help_text = """
+        "general": """
 [bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
 [bold cyan]║                   GENERAL COMMANDS                           ║[/bold cyan]
 [bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
@@ -339,104 +329,23 @@ def cmd_help(args: List[str], ctx: CommandContext):
   • Breast grid with fill levels
   • Genitals status
   • Uterus system (if present)
-        """
-        console.print(Panel(help_text, title="[bold]General Commands Help[/bold]", border_style="bright_green"))
+        """,
+    }
 
-    elif topic == "uterus":
-        help_text = """
-[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
-[bold cyan]║         UTERUS - INFLATION & FLUID SYSTEM                    ║[/bold cyan]
-[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
-
-[bold yellow]💧 FLUID COMMANDS[/bold yellow]
-
-  [green]uterus add_fluid <type> <amount> [idx][/green]
-                            - Add fluid (auto-distributes to tubes/ovaries)
-  [green]uterus drain [idx][/green]       - Drain ALL fluid from system
-  [green]uterus remove <amount> [idx][/green]
-                            - Remove specific amount
-  [green]uterus status [idx][/green]       - Show detailed status with fluid distribution
-
-[bold yellow]🎈 INFLATION COMMANDS[/bold yellow]
-
-  [green]uterus inflate <ratio> [idx][/green]
-                            - Inflate uterus (1.0=normal, 2.0=2x size)
-  [green]uterus deflate [idx][/green]     - Reduce inflation (recovery)
-  [green]uterus inflation [idx][/green]   - Show inflation details
-
-[bold magenta]Inflation Status:[/bold magenta]
-  NORMAL → STRETCHED → DISTENDED → HYPERDISTENDED → RUPTURE_RISK → RUPTURED
-
-[bold yellow]🌊 TUBE COMMANDS[/bold yellow]
-
-  [green]uterus tube_inflate <side> <ratio> [idx][/green]
-                            - Inflate specific tube (left/right)
-  [green]uterus tube_stretch <side> <ratio> [idx][/green]
-                            - Stretch tube length
-  [green]uterus tube_status [idx][/green]
-                            - Show tube status
-
-[bold yellow]🥚 OVARY COMMANDS[/bold yellow]
-
-  [green]uterus ovary_fill <side> <amount> [idx][/green]
-                            - Fill ovary directly
-  [green]uterus ovary_drain <side> [idx][/green]
-                            - Drain ovary
-
-[bold yellow]🔧 CERVIX & OBJECTS[/bold yellow]
-
-  [green]uterus dilate <amount> [idx][/green]
-                            - Dilate cervix
-  [green]uterus contract [idx][/green]    - Contract cervix
-  [green]uterus insert <type> [idx][/green]
-                            - Insert object (egg, ball, beads, speculum)
-  [green]uterus remove_obj [idx] [obj_idx][/green]
-                            - Remove object
-  [green]uterus objects [idx][/green]     - List inserted objects
-
-[bold yellow]⚠️ PROLAPSE COMMANDS[/bold yellow]
-
-  [green]uterus strain [force] [idx][/green]
-                            - Apply strain
-  [green]uterus evert [idx][/green]       - Force eversion
-  [green]uterus reduce [amount] [idx][/green]
-                            - Reduce prolapse
-  [green]uterus risk [idx][/green]        - Show prolapse risk
-
-[bold yellow]⚙️ SIMULATION[/bold yellow]
-
-  [green]uterus tick [dt] [idx][/green]    - Manual tick
-  [green]uterus peristalsis <strength> [idx][/green]
-                            - Set peristalsis (0.0-1.0)
-  [green]uterus backflow <on/off> [idx][/green]
-                            - Enable/disable backflow
-
-[bold magenta]╔══════════════════════════════════════════════════════════════╗[/bold magenta]
-[bold magenta]║                    FLUID DISTRIBUTION                        ║[/bold magenta]
-[bold magenta]╚══════════════════════════════════════════════════════════════╝[/bold magenta]
-
-[yellow]Auto-distribution:[/yellow]
-  • 70% stays in uterus
-  • 30% goes to fallopian tubes
-  • From tubes: auto-transfer to ovaries when >80% full
-  • Backflow: returns to uterus when ovaries overfilled
-
-[yellow]Peristalsis:[/yellow]
-  • Pushes fluid from uterus to tubes over time
-  • Set with: uterus peristalsis <0.0-1.0>
-
-[yellow]Inflation mechanics:[/yellow]
-  • Increases capacity of uterus and tubes
-  • Can become permanent (plasticity)
-  • Risk of stretch marks at high inflation
-        """
-        console.print(Panel(help_text, title="[bold]Uterus System Help[/bold]", border_style="bright_magenta"))
-
+    if topic in help_topics:
+        border_colors = {
+            "uterus": "bright_magenta",
+            "breasts": "bright_cyan", 
+            "genitals": "bright_red",
+            "general": "bright_green",
+        }
+        console.print(Panel(help_topics[topic], 
+                           title=f"[bold]{topic.upper()} System Help[/bold]", 
+                           border_style=border_colors.get(topic, "white")))
     else:
         console.print(f"[yellow]Unknown help topic: {topic}[/yellow]")
         console.print("[dim]Available topics: uterus, breasts, genitals, general[/dim]")
         console.print("[dim]Or use 'help' without arguments for command list[/dim]")
-
 
 
 
@@ -509,15 +418,85 @@ def cmd_stimulate(args: List[str], ctx: CommandContext):
 
 def cmd_tick(args: List[str], ctx: CommandContext):
     dt = float(args[0]) if args else 1.0
-    
+
     for body in ctx.bodies:
         body.tick(dt)
-    
-    # Автоматические реакции матки
-    integrate_with_tick(ctx.bodies, dt, console)
-    
+
+    # Автоматические реакции (breasts + uterus)
+    _process_auto_reactions(ctx.bodies, dt)
+
     console.print(f"[green]Ticked {len(ctx.bodies)} bodies (dt={dt})[/green]")
-    
+
+
+def _process_auto_reactions(bodies: List, dt: float):
+    """Обработать автоматические реакции для всех тел."""
+    for body in bodies:
+        profile_name = "default"
+        body_type = type(body).__name__.lower()
+
+        if "roxy" in body_type or "migurdia" in body_type:
+            profile_name = "roxy"
+        elif "misaka" in body_type:
+            profile_name = "misaka"
+
+        # Breast reactions
+        try:
+            from body_sim.characters.breast_reactions import get_reaction_system
+            breast_system = get_reaction_system()
+
+            if hasattr(body, 'has_breasts') and body.has_breasts:
+                reactions = breast_system.process_reactions(body, profile_name)
+                for reaction in reactions:
+                    _print_reaction(console, reaction, "Breast")
+        except:
+            pass
+
+        # Uterus reactions
+        try:
+            from body_sim.characters.uterus_reactions import get_uterus_reaction_system
+            uterus_system = get_uterus_reaction_system()
+
+            if hasattr(body, 'uterus_system') and body.uterus_system:
+                reactions = uterus_system.process_reactions(body, profile_name)
+                for reaction in reactions:
+                    _print_reaction(console, reaction, "Uterus")
+        except:
+            pass
+
+
+def _print_reaction(console, reaction, source: str):
+    """Вывести реакцию с цветовым кодированием."""
+    color_map = {
+        "neutral": "white",
+        "pleasure": "magenta",
+        "pain": "red",
+        "embarrassment": "yellow",
+        "panic": "bright_red",
+        "tsundere": "bright_cyan",
+        "discomfort": "yellow",
+        "surprise": "cyan",
+        "shock": "bright_cyan",
+        "sadness": "blue",
+        "denial": "dim",
+        "anxiety": "yellow",
+        "confusion": "yellow",
+        "wonder": "green",
+        "fear": "bright_red",
+        "weird": "yellow",
+        "overwhelm": "red",
+        "agony": "bright_red",
+        "dissociation": "dim",
+        "unconscious": "dim",
+        "panic_embarrassment": "bright_yellow",
+        "pleasure_pain": "magenta",
+    }
+    color = color_map.get(reaction.emotion, "white")
+    prefix = f"[{source}]"
+
+    console.print(f"\n[{color}]{prefix} {reaction.text}[/{color}]")
+    if reaction.sound_effect:
+        console.print(f"[dim italic]{reaction.sound_effect}[/dim italic]")
+
 
 
 def cmd_add_fluid(args: List[str], ctx: CommandContext):
@@ -727,8 +706,6 @@ def cmd_create_roxy(args: List[str], ctx: CommandContext):
         console.print(f"[red]Error creating Roxy: {e}[/red]")
         import traceback
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
-
-
 
 
 def cmd_uterus(args: List[str], ctx: CommandContext):
@@ -1071,8 +1048,9 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
         console.print("         ovary_fill, ovary_drain, strain, evert, reduce, risk")
         console.print("         insert, remove_obj, objects, tick, peristalsis, backflow")
 
+
 def cmd_ovary(args: List[str], ctx: CommandContext):
-    """Управление яичниками (ovaries)."""
+    """Управление яичниками (ovaries) - упрощённый интерфейс."""
     if not ctx.active_body:
         console.print("[red]No body selected[/red]")
         return
@@ -1083,44 +1061,35 @@ def cmd_ovary(args: List[str], ctx: CommandContext):
 
     system = ctx.active_body.uterus_system
 
-    if not args:
-        # Показать все яичники
-        from body_sim.ui.ovary_tube_render import OvaryTubeRenderer
-        renderer = OvaryTubeRenderer()
-
-        for uterus in system.uteri:
-            for ovary in uterus.ovaries:
-                if ovary:
-                    console.print(renderer.render_ovary_detailed(ovary))
-        return
-
-    action = args[0].lower()
-
-    # Убираем action из args
-    args = args[1:]
-
-    # Определяем side и uterus_idx
+    # Парсим аргументы
     side = "left"
     uterus_idx = 0
+    action = "status"
 
-    # Проверяем последний аргумент на индекс матки (0-9)
+    if args:
+        # Первый аргумент может быть action или side
+        if args[0].lower() in ("left", "right"):
+            side = args[0].lower()
+            args = args[1:]
+        elif args[0].lower() in ("status", "enlarge", "rupture", "evert", "reposition", "ovulate"):
+            action = args[0].lower()
+            args = args[1:]
+        else:
+            action = args[0].lower()
+            args = args[1:]
+
+    # Проверяем последний аргумент на индекс матки
     if args:
         try:
             potential_idx = int(args[-1])
-            if 0 <= potential_idx <= 9 and len(system.uteri) > potential_idx:
+            if 0 <= potential_idx <= 9:
                 uterus_idx = potential_idx
                 args = args[:-1]
         except ValueError:
             pass
 
-    # Проверяем первый аргумент на side
-    if args:
-        if args[0].lower() in ("left", "right"):
-            side = args[0].lower()
-            args = args[1:]
-
     if uterus_idx >= len(system.uteri):
-        console.print(f"[red]Invalid uterus index[/red]")
+        console.print(f"[red]Invalid uterus index: {uterus_idx}[/red]")
         return
 
     uterus = system.uteri[uterus_idx]
@@ -1177,8 +1146,9 @@ def cmd_ovary(args: List[str], ctx: CommandContext):
         console.print(f"[red]Unknown action: {action}[/red]")
         console.print("Actions: status, enlarge, rupture, evert, reposition, ovulate")
 
+
 def cmd_tube(args: List[str], ctx: CommandContext):
-    """Управление фаллопиевыми трубами (fallopian tubes)."""
+    """Управление фаллопиевыми трубами (fallopian tubes) - упрощённый интерфейс."""
     if not ctx.active_body:
         console.print("[red]No body selected[/red]")
         return
@@ -1189,44 +1159,35 @@ def cmd_tube(args: List[str], ctx: CommandContext):
 
     system = ctx.active_body.uterus_system
 
-    if not args:
-        # Показать все трубы
-        from body_sim.ui.ovary_tube_render import OvaryTubeRenderer
-        renderer = OvaryTubeRenderer()
-
-        for uterus in system.uteri:
-            for tube in uterus.tubes:
-                if tube:
-                    console.print(renderer.render_tube_detailed(tube))
-        return
-
-    action = args[0].lower()
-
-    # Убираем action из args
-    args = args[1:]
-
-    # Определяем side и uterus_idx
+    # Парсим аргументы
     side = "left"
     uterus_idx = 0
+    action = "status"
 
-    # Проверяем последний аргумент на индекс матки (0-9)
+    if args:
+        # Первый аргумент может быть action или side
+        if args[0].lower() in ("left", "right"):
+            side = args[0].lower()
+            args = args[1:]
+        elif args[0].lower() in ("status", "stretch", "evert", "reposition", "add_fluid", "clear"):
+            action = args[0].lower()
+            args = args[1:]
+        else:
+            action = args[0].lower()
+            args = args[1:]
+
+    # Проверяем последний аргумент на индекс матки
     if args:
         try:
             potential_idx = int(args[-1])
-            if 0 <= potential_idx <= 9 and len(system.uteri) > potential_idx:
+            if 0 <= potential_idx <= 9:
                 uterus_idx = potential_idx
                 args = args[:-1]
         except ValueError:
             pass
 
-    # Проверяем первый аргумент на side
-    if args:
-        if args[0].lower() in ("left", "right"):
-            side = args[0].lower()
-            args = args[1:]
-
     if uterus_idx >= len(system.uteri):
-        console.print(f"[red]Invalid uterus index[/red]")
+        console.print(f"[red]Invalid uterus index: {uterus_idx}[/red]")
         return
 
     uterus = system.uteri[uterus_idx]
@@ -1286,6 +1247,166 @@ def cmd_tube(args: List[str], ctx: CommandContext):
         console.print(f"[red]Unknown action: {action}[/red]")
         console.print("Actions: status, stretch, evert, reposition, add_fluid, clear")
 
+
+
+
+def cmd_reactions_all(args: List[str], ctx: CommandContext):
+    """Показать все реакции (грудь + матка) для текущего персонажа."""
+    if not ctx.active_body:
+        console.print("[red]No active body![/red]")
+        return
+
+    # Определяем профиль персонажа
+    profile_name = "default"
+    body_type = type(ctx.active_body).__name__.lower()
+
+    if "roxy" in body_type or "migurdia" in body_type:
+        profile_name = "roxy"
+    elif "misaka" in body_type:
+        profile_name = "misaka"
+
+    has_reactions = False
+
+    # ============ BREAST REACTIONS ============
+    try:
+        from body_sim.characters.breast_reactions import get_reaction_system
+        breast_system = get_reaction_system()
+
+        if hasattr(ctx.active_body, 'has_breasts') and ctx.active_body.has_breasts:
+            breast_reactions = breast_system.process_reactions(ctx.active_body, profile_name)
+
+            if breast_reactions:
+                has_reactions = True
+                console.print("\n[bold cyan]╔══════════════════════════════════════════╗[/bold cyan]")
+                console.print("[bold cyan]║           BREAST REACTIONS               ║[/bold cyan]")
+                console.print("[bold cyan]╚══════════════════════════════════════════╝[/bold cyan]")
+
+                for reaction in breast_reactions:
+                    color_map = {
+                        "neutral": "white",
+                        "pleasure": "magenta",
+                        "pain": "red",
+                        "embarrassment": "yellow",
+                        "panic": "bright_red",
+                        "tsundere": "bright_cyan",
+                        "discomfort": "yellow",
+                        "surprise": "cyan",
+                        "shock": "bright_cyan",
+                        "sadness": "blue",
+                        "denial": "dim",
+                        "anxiety": "yellow",
+                        "confusion": "yellow",
+                        "wonder": "green",
+                        "fear": "bright_red",
+                        "weird": "yellow",
+                        "overwhelm": "red",
+                        "agony": "bright_red",
+                        "dissociation": "dim",
+                        "unconscious": "dim",
+                        "panic_embarrassment": "bright_yellow",
+                        "pleasure_pain": "magenta",
+                    }
+                    color = color_map.get(reaction.emotion, "white")
+
+                    console.print(f"\n[{color}]{reaction.text}[/{color}]")
+                    if reaction.sound_effect:
+                        console.print(f"[dim italic]{reaction.sound_effect}[/dim italic]")
+                    if reaction.physical_effect:
+                        console.print(f"[dim]*{reaction.physical_effect}*[/dim]")
+    except Exception as e:
+        if args and args[0] == 'debug':
+            console.print(f"[dim]Breast reactions error: {e}[/dim]")
+
+    # ============ UTERUS REACTIONS ============
+    try:
+        from body_sim.characters.uterus_reactions import get_uterus_reaction_system
+        uterus_system = get_uterus_reaction_system()
+
+        if hasattr(ctx.active_body, 'uterus_system') and ctx.active_body.uterus_system:
+            uterus_reactions = uterus_system.process_reactions(ctx.active_body, profile_name)
+
+            if uterus_reactions:
+                has_reactions = True
+                console.print("\n[bold magenta]╔══════════════════════════════════════════╗[/bold magenta]")
+                console.print("[bold magenta]║           UTERUS REACTIONS               ║[/bold magenta]")
+                console.print("[bold magenta]╚══════════════════════════════════════════╝[/bold magenta]")
+
+                for reaction in uterus_reactions:
+                    color_map = {
+                        "neutral": "white",
+                        "pleasure": "magenta",
+                        "pain": "red",
+                        "embarrassment": "yellow",
+                        "panic": "bright_red",
+                        "tsundere": "bright_cyan",
+                        "discomfort": "yellow",
+                        "surprise": "cyan",
+                        "shock": "bright_cyan",
+                        "sadness": "blue",
+                        "denial": "dim",
+                        "anxiety": "yellow",
+                        "confusion": "yellow",
+                        "wonder": "green",
+                        "fear": "bright_red",
+                        "weird": "yellow",
+                        "overwhelm": "red",
+                        "agony": "bright_red",
+                        "dissociation": "dim",
+                        "unconscious": "dim",
+                        "panic_embarrassment": "bright_yellow",
+                        "pleasure_pain": "magenta",
+                    }
+                    color = color_map.get(reaction.emotion, "white")
+
+                    console.print(f"\n[{color}]{reaction.text}[/{color}]")
+                    if reaction.sound_effect:
+                        console.print(f"[dim italic]{reaction.sound_effect}[/dim italic]")
+                    if reaction.physical_effect:
+                        console.print(f"[dim]*{reaction.physical_effect}*[/dim]")
+    except Exception as e:
+        if args and args[0] == 'debug':
+            console.print(f"[dim]Uterus reactions error: {e}[/dim]")
+
+    if not has_reactions:
+        console.print("[dim]No new reactions...[/dim]")
+        if args and args[0] == 'debug':
+            console.print(f"[dim]Body type: {body_type}, Profile: {profile_name}[/dim]")
+
+
+def cmd_reactions_clear_all(args: List[str], ctx: CommandContext):
+    """Очистить все состояния реакций (грудь + матка)."""
+    cleared = []
+
+    # Очистка breast reactions
+    try:
+        from body_sim.characters.breast_reactions import get_reaction_system
+        breast_system = get_reaction_system()
+        if ctx.active_body:
+            breast_system.clear_state(id(ctx.active_body))
+        else:
+            breast_system.clear_state()
+        cleared.append("breast")
+    except:
+        pass
+
+    # Очистка uterus reactions
+    try:
+        from body_sim.characters.uterus_reactions import get_uterus_reaction_system
+        uterus_system = get_uterus_reaction_system()
+        if ctx.active_body:
+            uterus_system.clear_state(id(ctx.active_body))
+        else:
+            uterus_system.clear_state()
+        cleared.append("uterus")
+    except:
+        pass
+
+    if cleared:
+        console.print(f"[green]Cleared {', '.join(cleared)} reaction states[/green]")
+    else:
+        console.print("[yellow]No reaction systems to clear[/yellow]")
+
+
 # ============ Создание реестра команд ============
 
 def create_registry() -> CommandRegistry:
@@ -1293,7 +1414,7 @@ def create_registry() -> CommandRegistry:
     registry = CommandRegistry()
 
     # General
-    registry.register(Command("help", ["h", "?"], "Show help", "help", cmd_help, "general"))
+    registry.register(Command("help", ["h", "?"], "Show help", "help [topic]", cmd_help, "general"))
     registry.register(Command("quit", ["q", "exit"], "Exit program", "quit", cmd_quit, "general"))
     registry.register(Command("list", ["ls", "bodies"], "List all bodies", "list", cmd_list, "general"))
     registry.register(Command("select", ["sel"], "Select body by index", "select <idx>", cmd_select, "general"))
@@ -1317,16 +1438,33 @@ def create_registry() -> CommandRegistry:
     # Genitals
     registry.register(Command("penetrate", ["pen"], "Penetrate orifice", "penetrate <target> <idx> [penis_idx]", cmd_penetration, "genitals"))
     registry.register(Command("ejaculate", ["ejac", "cum"], "Ejaculate", "ejaculate [penis_idx] [force]", cmd_ejaculate, "genitals"))
+
     # Uterus
     registry.register(Command("uterus", ["ut", "womb"], "Uterus management", "uterus [action] [args...]", cmd_uterus, "uterus"))
 
     # Ovaries
-    registry.register(Command("ovary", ["ov", "ovaries"], "Ovary management", "ovary [action] [side] [args...]", cmd_ovary, "uterus"))
+    registry.register(Command("ovary", ["ov", "ovaries"], "Ovary management", "ovary [side] [action] [args...] [idx]", cmd_ovary, "uterus"))
 
     # Fallopian tubes
-    registry.register(Command("tube", ["ft", "tubes"], "Fallopian tube management", "tube [action] [side] [args...]", cmd_tube, "uterus"))
+    registry.register(Command("tube", ["ft", "tubes"], "Fallopian tube management", "tube [side] [action] [args...] [idx]", cmd_tube, "uterus"))
+    # Combined reactions command
+    registry.register(Command(
+        "reactions", ["react", "r"],
+        "Show all body reactions (breasts + uterus)",
+        "reactions [debug]",
+        cmd_reactions_all,
+        "reactions"
+    ))
 
-    register_roxy_command(registry)
+    registry.register(Command(
+        "reactions_clear", ["rclearall", "rca"],
+        "Clear all reaction states",
+        "reactions_clear",
+        cmd_reactions_clear_all,
+        "reactions"
+    ))
+
+
     # Реакции (если доступны)
     try:
         from body_sim.characters.breast_reactions import get_reaction_system, register_reaction_commands
@@ -1336,7 +1474,7 @@ def create_registry() -> CommandRegistry:
         console.print(f"[dim]Breasts reaction commands not available: {e}[/dim]")
     except Exception as e:
         console.print(f"[yellow]Warning: Failed to load breasts reaction commands: {e}[/yellow]")
-        
+
     try:
         from body_sim.characters.uterus_reactions import get_uterus_reaction_system, register_uterus_reaction_commands
         register_uterus_reaction_commands(registry, get_uterus_reaction_system())
@@ -1345,4 +1483,12 @@ def create_registry() -> CommandRegistry:
         console.print(f"[dim]Uterus reaction commands not available: {e}[/dim]")
     except Exception as e:
         console.print(f"[yellow]Warning: Failed to load uterus reaction commands: {e}[/yellow]")
+
+    # Рокси команды (если доступны)
+    try:
+        from body_sim.characters.roxy_migurdia import register_roxy_command
+        register_roxy_command(registry)
+    except ImportError:
+        pass  # Не критично
+
     return registry

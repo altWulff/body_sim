@@ -6,6 +6,7 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, Callable, Any, Optional, TYPE_CHECKING
 import math
+import cmath
 
 from body_sim.core.enums import CupSize, BreastState, FluidType
 from body_sim.core.fluids import FluidMixture, BreastFluid, FLUID_DEFS
@@ -335,7 +336,7 @@ class Breast:
         
         if self.areola:
             base_diameter = self.areola.base_diameter
-            target_diameter = base_diameter * math.sqrt(self.inflation.stretch_ratio)
+            target_diameter = base_diameter * cmath.sqrt(self.inflation.stretch_ratio)
             self.areola._current_diameter = target_diameter
         
         self._emit("inflation", stretch_ratio=self.inflation.stretch_ratio,
