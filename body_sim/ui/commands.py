@@ -142,6 +142,7 @@ def cmd_help(args: List[str], ctx: CommandContext):
 
   [green]uterus[/green]                    - Show full uterus system status
   [green]uterus status [idx][/green]       - Detailed status with fluid distribution
+  [green]uterus fullness [idx][/green]    - Show detailed fluid/objects distribution
   [green]uterus add_fluid <type> <amount> [idx][/green]
                             - Add fluid (auto-distributes to tubes/ovaries)
                             Types: milk, cum, water, honey, oil, blood
@@ -785,6 +786,12 @@ def cmd_uterus(args: List[str], ctx: CommandContext):
 
         if hasattr(uterus.walls, 'is_permanently_stretched') and uterus.walls.is_permanently_stretched:
             console.print("  [yellow]⚠️ Permanently stretched![/yellow]")
+
+    elif action == "fullness":
+        """Показать детальное заполнение системы (жидкость + предметы)."""
+        from body_sim.ui.uterus_render import UterusRenderer
+        renderer = UterusRenderer()
+        console.print(renderer.render_fullness(uterus, f"Uterus #{uterus_idx} Fullness"))
 
     elif action == "add_fluid":
         if len(args) < 2:

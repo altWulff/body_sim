@@ -59,7 +59,6 @@ class RoxyMigurdia(FemaleBody):
     
     # Грудь - маленькая (AA), характерна для её телосложения
     breast_cup: str = "AA"
-    breast_count: int = 2
     
     # Внешность (для рендеринга/описания)
     appearance: Dict[str, Any] = field(default_factory=lambda: {
@@ -108,31 +107,6 @@ class RoxyMigurdia(FemaleBody):
         Настройка маленькой чувствительной груди Рокси.
         AA-cup, маленькие соски, высокая чувствительность ареол.
         """
-        # Маленькие аккуратные соски для petite-телосложения
-        nipple = Nipple(
-            base_length=0.35,  # Короткие (0.6 стандарт)
-            base_width=0.55,   # Узкие (0.8 стандарт)
-            base_min_gape_diameter=0.0,
-            color=Color.PALE_PINK,  # Бледно-розовые (светлая кожа)
-            erect_multiplier=1.6    # Сильная эрекция сосков (чувствительные)
-        )
-        
-        # Ареола с повышенной чувствительностью (мигурдийская кожа)
-        areola = Areola(
-            base_diameter=2.8,      # Маленькая ареола (4.0 стандарт)
-            color=Color.PALE_PINK,   # Бледно-розовая
-            nipples=[nipple],
-            puffiness=0.2,          # Лёгкая пухлость
-            sensitivity=0.9         # ВЫСОКАЯ чувствительность (0.7 стандарт)
-        )
-        
-        # Маленькая упругая грудь
-        breast = Breast(
-            cup=CupSize.AA,
-            areola=areola,
-            base_elasticity=1.2,     # Высокая упругость молодой груди
-            leak_factor=15.0         # Меньше утечка (компактная грудь)
-        )
         
         # Создаём сетку из двух грудей
         left_breast = Breast(

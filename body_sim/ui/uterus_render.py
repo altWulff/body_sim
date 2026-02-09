@@ -1,10 +1,10 @@
 # body_sim/ui/uterus_render.py
 """
-Улучшенный Rich-рендеринг системы матки с детальной визуализацией пролапса,
-яичников и фаллопиевых труб.
+Улучшенный Rich-рендеринг системы матки с детальной визуализацией пролапса
+и цветовой индикацией состояний.
 """
 
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any
 from rich.console import Console, RenderableType, Group
 from rich.panel import Panel
 from rich.table import Table
@@ -17,7 +17,7 @@ from rich import box
 
 
 class UterusRenderer:
-    """Улучшенный рендерер системы матки с визуализацией пролапса и придатков."""
+    """Улучшенный рендерер системы матки с визуализацией пролапса."""
     
     COLORS = {
         'normal': 'green',
@@ -37,55 +37,49 @@ class UterusRenderer:
         'EVERTED': ('🔴', 'red', 'ВЫВОРОТ'),
         'INVERTED': ('⚫', 'dim', 'Инверсия'),
     }
+    INFLATION_STYLES = {
+        'NORMAL': ('✓', 'green', 'Норма'),
+        'STRETCHED': ('~', 'yellow', 'Растянута'),
+        'DISTENDED': ('⚠', 'bright_red', 'Выпучена'),
+        'HYPERDISTENDED': ('🔥', 'red', 'Гипер'),
+        'RUPTURE_RISK': ('💀', 'red', 'Риск разрыва'),
+        'RUPTURED': ('💥', 'bright_red', 'РАЗОРВАНА'),
+    }
+
     
-    # Состояния яичника
-    OVARY_STATE_STYLES = {
-        'NORMAL': ('🟢', 'green', 'Норма'),
-        'ENLARGED': ('🟡', 'yellow', 'Увеличен'),
-        'PROLAPSED': ('🟠', 'bright_red', 'Пролапс'),
-        'EVERTED': ('🔴', 'red', 'ВЫВОРОТ'),
-        'TORSION': ('⛔', 'bright_red', 'Перекрут'),
+    OVARY_STATES = {
+        'NORMAL': ('🟢', 'green'),
+        'ENLARGED': ('🟡', 'yellow'),
+        'PROLAPSED': ('🟠', 'bright_red'),
+        'EVERTED': ('🔴', 'red'),
+        'TORSION': ('⛔', 'bright_red'),
     }
     
-    # Состояния фаллопиевой трубы
-    TUBE_STATE_STYLES = {
-        'NORMAL': ('🟢', 'green', 'Норма'),
-        'DILATED': ('🟡', 'yellow', 'Расширена'),
-        'BLOCKED': ('⛔', 'red', 'Заблокирована'),
-        'PROLAPSED': ('🟠', 'bright_red', 'Пролапс'),
-        'EVERTED_WITH_OVARY': ('🔴', 'red', 'ВЫВОРОТ'),
-    }
-    
-    SIDE_EMOJIS = {
-        'left': '🌙',
-        'right': '☀️',
-        'unknown': '⚪'
+    TUBE_STATES = {
+        'NORMAL': ('🟢', 'green'),
+        'DILATED': ('🟡', 'yellow'),
+        'BLOCKED': ('⛔', 'red'),
+        'PROLAPSED': ('🟠', 'bright_red'),
+        'EVERTED_WITH_OVARY': ('🔴', 'red'),
     }
     
     def __init__(self, console: Optional[Console] = None):
         self.console = console or Console()
     
-    def _get_state_style(self, state) -> Tuple[str, str, str]:
-        """Получить стиль для состояния матки."""
+    def _get_state_style(self, state) -> tuple:
+        """Получить стиль для состояния."""
         if state is None:
             return ('⚪', 'dim', 'None')
         state_name = getattr(state, 'name', str(state))
         return self.STATE_STYLES.get(state_name, ('⚪', 'dim', state_name))
     
-    def _get_ovary_state_style(self, state) -> Tuple[str, str, str]:
-        """Получить стиль для состояния яичника."""
-        if state is None:
-            return ('⚪', 'dim', 'None')
-        state_name = getattr(state, 'name', str(state))
-        return self.OVARY_STATE_STYLES.get(state_name, ('⚪', 'dim', state_name))
-    
-    def _get_tube_state_style(self, state) -> Tuple[str, str, str]:
-        """Получить стиль для состояния трубы."""
-        if state is None:
-            return ('⚪', 'dim', 'None')
-        state_name = getattr(state, 'name', str(state))
-        return self.TUBE_STATE_STYLES.get(state_name, ('⚪', 'dim', state_name))
-    
+    def _get_inflation_style(self, status) -> tuple:
+        """Получить стиль для инфляции."""
+        if status is None:
+            return ('✓', 'green', 'Норма')
+        status_name = getattr(status, 'name', str(status))
+        return self.INFLATION_STYLES.get(status_name, ('?', 'white', status_name))
+
     def _bar(self, value: float, width: int = 8, color_map: Dict[str, str] = None) -> Text:
         """Улучшенный прогресс-бар с градиентом."""
         value = max(0.0, min(1.0, value or 0))
@@ -109,32 +103,6 @@ class UterusRenderer:
         if volume >= 1000:
             return f"{volume/1000:.1f}L"
         return f"{volume:.0f}ml"
-    
-    def _render_follicles_visual(self, sizes: List[float], max_display: int = 6) -> str:
-        """Визуализация фолликулов."""
-        if not sizes:
-            return "[dim]Нет[/dim]"
-        
-        visual_parts = []
-        for size in sizes[:max_display]:
-            if size < 0.3:
-                emoji, color = "•", "dim"
-            elif size < 0.8:
-                emoji, color = "○", "cyan"
-            elif size < 1.5:
-                emoji, color = "◐", "bright_cyan"
-            else:
-                emoji, color = "●", "bright_yellow"
-            visual_parts.append(f"[{color}]{emoji}[/{color}]")
-        
-        if len(sizes) > max_display:
-            visual_parts.append(f"[dim]+{len(sizes) - max_display}[/dim]")
-        
-        return " ".join(visual_parts)
-    
-    # ======================
-    # UTERUS RENDER
-    # ======================
     
     def render_uterus_detailed(self, uterus, title: str = "Матка") -> Panel:
         """Детальный рендер матки с визуализацией пролапса."""
@@ -176,7 +144,7 @@ class UterusRenderer:
                 fill_info.append(f"💧 {fluid_total:.0f}ml ({fluid_types})")
             if objects:
                 fill_info.append(f"📦 {len(objects)} предметов")
-            table.add_row("Содержимое", "\\n".join(fill_info))
+            table.add_row("Содержимое", "\n".join(fill_info))
         
         # Физиология
         tone = getattr(uterus, 'muscle_tone', 0) or 0
@@ -213,8 +181,8 @@ class UterusRenderer:
             everted_volume = getattr(uterus, 'everted_volume', 0) or 0
             table.add_row(
                 "⚠️ ВНИМАНИЕ", 
-                f"[bold red]ПОЛНЫЙ ВЫВОРОТ![/bold red]\\n"
-                f"Внешний объём: {self._format_volume(everted_volume)}\\n"
+                f"[bold red]ПОЛНЫЙ ВЫВОРОТ![/bold red]\n"
+                f"Внешний объём: {self._format_volume(everted_volume)}\n"
                 f"Всё содержимое вытолкнуто наружу!"
             )
         
@@ -245,6 +213,10 @@ class UterusRenderer:
         stages = 10
         current = int(descent * stages)
         
+        # Нормальное положение [🟢🟢🟢⚪⚪⚪⚪⚪⚪⚪]
+        # Пролапс        [🟢🟢🟡🟡🟠🟠🔴🔴🔴🔴]
+        # Выворот        [🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴]
+        
         colors = []
         for i in range(stages):
             if is_everted:
@@ -266,178 +238,132 @@ class UterusRenderer:
         
         return Text.from_markup(f"{bar} [{percent}]")
     
-    # ======================
-    # OVARY DETAILED RENDER
-    # ======================
-    
-    def render_ovary_detailed(self, ovary, title: Optional[str] = None) -> Panel:
+    def render_ovary_detailed(self, ovary, compact: bool = False) -> Panel:
         """Детальный рендер яичника."""
         if ovary is None:
-            return Panel("[dim]Яичник отсутствует[/dim]", 
-                        title="Яичник", box=box.ROUNDED, border_style="dim")
+            return Panel("[dim]Н/Д[/dim]", title="Яичник", box=box.SIMPLE)
         
         state = getattr(ovary, 'state', None)
-        emoji, color, state_name = self._get_ovary_state_style(state)
+        state_name = getattr(state, 'name', 'Unknown')
+        emoji, color = self.OVARY_STATES.get(state_name, ('⚪', 'dim'))
+        
         side = getattr(ovary, 'side', 'unknown')
-        side_emoji = self.SIDE_EMOJIS.get(side, '⚪')
-        
-        table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
-        table.add_column("Param", style="cyan", width=12)
-        table.add_column("Value", style="white")
-        
-        table.add_row("Состояние", f"[{color}]{emoji} {state_name}[/{color}]")
+        side_emoji = "🌙" if side == "left" else "☀️" if side == "right" else "⚪"
         
         # Размеры
         length = getattr(ovary, 'length', 3.0)
         width = getattr(ovary, 'width', 2.0)
         thickness = getattr(ovary, 'thickness', 1.5)
-        volume = ovary.calculate_volume() if hasattr(ovary, 'calculate_volume') else 0
-        
-        table.add_row("Размер", f"{length}×{width}×{thickness}cm")
-        table.add_row("Объём", f"{volume:.1f}ml")
-        
-        # Пролапс
-        prolapse = getattr(ovary, 'prolapse_degree', 0.0)
-        if prolapse > 0:
-            table.add_row("Выпадение", self._bar(prolapse))
+        volume = ovary.calculate_volume() if hasattr(ovary, 'calculate_volume') else (length * width * thickness * 0.8)
         
         # Фолликулы
         follicles = getattr(ovary, 'follicle_count', 5)
-        follicle_sizes = getattr(ovary, 'follicle_sizes', [])
-        if follicle_sizes:
-            avg = sum(follicle_sizes) / len(follicle_sizes)
-            max_f = max(follicle_sizes)
-            follicle_viz = self._render_follicles_visual(follicle_sizes)
-            table.add_row("Фолликулы", f"{follicles}шт ~{avg:.1f}cm max:{max_f:.1f}cm\\n{follicle_viz}")
+        follicle_sizes = getattr(ovary, 'follicle_sizes', [0.5] * 5)
+        avg_follicle = sum(follicle_sizes) / len(follicle_sizes) if follicle_sizes else 0
+        
+        # Пролапс
+        prolapse = getattr(ovary, 'prolapse_degree', 0.0)
+        is_everted = getattr(ovary, 'is_everted', False)
+        visible = getattr(ovary, 'visible_externally', False)
+        
+        if compact:
+            content = f"{emoji} {state_name[:4]} | {volume:.1f}ml"
+            if is_everted:
+                content += " [red]ВЫВОРОТ![/red]"
+            return Panel(content, title=f"{side_emoji} {side[:1].upper()}", box=box.SIMPLE, border_style=color)
+        
+        # Детальный вид
+        table = Table(box=None, show_header=False)
+        table.add_column("Param", style="cyan")
+        table.add_column("Value")
+        
+        table.add_row("Состояние", f"[{color}]{emoji} {state_name}[/{color}]")
+        table.add_row("Размер", f"{length}×{width}×{thickness}cm")
+        table.add_row("Объём", f"{volume:.1f}ml")
+        table.add_row("Фолликулы", f"{follicles} шт, ~{avg_follicle:.1f}cm")
+        
+        if prolapse > 0:
+            table.add_row("Пролапс", self._bar(prolapse, width=6))
+        
+        if is_everted:
+            desc = getattr(ovary, 'external_description', '')
+            table.add_row("⚠️ Виден снаружи", f"[red]{desc}[/red]" if desc else "[red]ПОЛНЫЙ ВЫВОРОТ[/red]")
         
         # Физиология
         hormones = getattr(ovary, 'hormone_production', 1.0)
         blood = getattr(ovary, 'blood_supply', 1.0)
-        
-        phys_table = Table(box=None, show_header=False)
-        phys_table.add_column("Stat", width=8)
-        phys_table.add_column("Bar", width=10)
-        
-        phys_table.add_row("Гормоны", self._bar(hormones))
-        phys_table.add_row("Кровь", self._bar(blood, color_map={'high': 'bright_red', 'medium': 'red', 'low': 'dim'}))
-        
-        table.add_row("Физиология", phys_table)
-        
-        # Внешний вид при выворачивании
-        if getattr(ovary, 'is_everted', False):
-            desc = getattr(ovary, 'external_description', '')
-            table.add_row("⚠️ Виден", f"[red]{desc[:50]}...[/red]" if len(str(desc)) > 50 else f"[red]{desc}[/red]")
-        
-        border_color = 'red' if getattr(ovary, 'is_everted', False) else color
-        panel_title = title or f"{side_emoji} {side.capitalize()} Ovary"
+        table.add_row("Гормоны", self._bar(hormones))
+        table.add_row("Кровоснабжение", self._bar(blood))
         
         return Panel(
             table,
-            title=f"[bold]{emoji} {panel_title}[/bold]",
+            title=f"[bold]{side_emoji} {side.capitalize()} Ovary[/bold]",
             box=box.ROUNDED,
-            border_style=border_color,
-            padding=(1, 2)
+            border_style='red' if is_everted else color
         )
     
-    # ======================
-    # TUBE DETAILED RENDER
-    # ======================
-    
-    def render_tube_detailed(self, tube, title: Optional[str] = None) -> Panel:
+    def render_tube_detailed(self, tube, compact: bool = False) -> Panel:
         """Детальный рендер фаллопиевой трубы."""
         if tube is None:
-            return Panel("[dim]Труба отсутствует[/dim]", 
-                        title="Труба", box=box.ROUNDED, border_style="dim")
+            return Panel("[dim]Н/Д[/dim]", title="Труба", box=box.SIMPLE)
         
         state = getattr(tube, 'state', None)
-        emoji, color, state_name = self._get_tube_state_style(state)
+        state_name = getattr(state, 'name', 'Unknown')
+        emoji, color = self.TUBE_STATES.get(state_name, ('⚪', 'dim'))
+        
         side = getattr(tube, 'side', 'unknown')
-        side_emoji = self.SIDE_EMOJIS.get(side, '⚪')
+        side_emoji = "🌙" if side == "left" else "☀️" if side == "right" else "⚪"
         
-        table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
-        table.add_column("Param", style="cyan", width=12)
-        table.add_column("Value", style="white")
-        
-        table.add_row("Состояние", f"[{color}]{emoji} {state_name}[/{color}]")
-        
-        # Размеры
+        length = getattr(tube, 'current_length', 10.0)
         base_length = getattr(tube, 'length', 10.0)
-        current_length = getattr(tube, 'current_length', base_length)
         stretch = getattr(tube, 'current_stretch', 1.0)
         diameter = getattr(tube, 'diameter', 0.3)
-        
-        table.add_row("Длина", f"{current_length:.1f}cm / {base_length:.1f}cm база")
-        table.add_row("Диаметр", f"{diameter:.1f}cm")
-        
-        if stretch > 1.0:
-            table.add_row(f"Растяжение ×{stretch:.1f}", self._bar(min(stretch/3.0, 1.0)))
-        
-        # Отверстия
-        uterine_opening = getattr(tube, 'uterine_opening', 0.1)
-        ovarian_opening = getattr(tube, 'ovarian_opening', 0.5)
-        opening_visible = getattr(tube, 'uterine_opening_visible', False)
-        
-        opening_text = f"Маточный: Ø{uterine_opening:.1f}cm"
-        if opening_visible:
-            opening_text += " [red]👁️ ВИДНО![/red]"
-        opening_text += f"\\nЯичниковый: Ø{ovarian_opening:.1f}cm"
-        
-        table.add_row("Отверстия", opening_text)
         
         # Содержимое
         fluid = getattr(tube, 'contained_fluid', 0.0)
         ovum = getattr(tube, 'contained_ovum', None)
-        if fluid > 0 or ovum:
-            content = []
-            if fluid > 0:
-                content.append(f"💧 {fluid:.1f}ml")
-            if ovum:
-                content.append("🥚 Яйцеклетка")
-            table.add_row("Содержимое", " | ".join(content))
         
         # Связь с яичником
         ovary = getattr(tube, 'ovary', None)
-        if ovary:
-            ovary_state = getattr(ovary, 'state', None)
-            ovary_emoji, ovary_color, ovary_name = self._get_ovary_state_style(ovary_state)
-            ovary_text = f"[{ovary_color}]{ovary_emoji} {ovary_name}[/{ovary_color}]"
-            
-            can_prolapse = getattr(tube, 'can_prolapse_ovary', False)
-            if can_prolapse:
-                ovary_text += "\\n[yellow]⚠️ Риск выпадения[/yellow]"
-            
-            table.add_row("Яичник", ovary_text)
+        can_prolapse = getattr(tube, 'can_prolapse_ovary', False)
+        opening_visible = getattr(tube, 'uterine_opening_visible', False)
         
-        # Эластичность
-        elasticity = getattr(tube, 'elasticity', 1.0)
-        max_stretch = getattr(tube, 'max_stretch_ratio', 3.0)
-        table.add_row("Эластичность", f"{self._bar(elasticity)} (макс ×{max_stretch:.1f})")
+        if compact:
+            content = f"{emoji} {state_name[:4]} | ×{stretch:.1f}"
+            if opening_visible:
+                content += " [red]👁️[/red]"
+            return Panel(content, title=f"{side_emoji} {side[:1].upper()}", box=box.SIMPLE, border_style=color)
         
-        border_color = 'red' if 'EVERTED' in str(state) else color
-        panel_title = title or f"{side_emoji} {side.capitalize()} Tube"
+        table = Table(box=None, show_header=False)
+        table.add_column("Param", style="cyan")
+        table.add_column("Value")
+        
+        table.add_row("Состояние", f"[{color}]{emoji} {state_name}[/{color}]")
+        table.add_row("Длина", f"{length:.1f}cm / {base_length:.1f}cm база")
+        table.add_row("Растяжение", f"[yellow]×{stretch:.1f}[/yellow]" if stretch > 1.5 else f"×{stretch:.1f}")
+        table.add_row("Диаметр", f"{diameter:.1f}cm")
+        
+        if fluid > 0:
+            table.add_row("Жидкость", f"{fluid:.1f}ml")
+        if ovum:
+            table.add_row("Яйцеклетка", "🥚 Присутствует")
+        
+        if opening_visible:
+            desc = getattr(tube, 'external_description', '')
+            table.add_row("⚠️ Отверстие видно", f"[red]{desc}[/red]" if desc else "[red]Видно при инверсии![/red]")
+        
+        if can_prolapse and ovary:
+            table.add_row("⚠️ Риск", "[yellow]Яичник может выпасть![/yellow]")
         
         return Panel(
             table,
-            title=f"[bold]{emoji} {panel_title}[/bold]",
+            title=f"[bold]{side_emoji} {side.capitalize()} Tube[/bold]",
             box=box.ROUNDED,
-            border_style=border_color,
-            padding=(1, 2)
+            border_style=color
         )
     
-    # ======================
-    # COMBINED SYSTEM RENDER
-    # ======================
-    
-    def render_full_system(self, system, title: str = "Система матки", 
-                          show_accessories: bool = True) -> Panel:
-        """
-        Полный рендер системы матки с придатками.
-        
-        Args:
-            system: UterusSystem или объект с .uteri
-            title: Заголовок панели
-            show_accessories: Показывать ли трубы и яичники
-        """
+    def render_full_system(self, system, title: str = "Система матки") -> Panel:
+        """Полный рендер системы матки."""
         uteri = getattr(system, 'uteri', [])
         
         if not uteri:
@@ -449,95 +375,47 @@ class UterusRenderer:
             # Основная матка
             uterus_panel = self.render_uterus_detailed(uterus, "Матка")
             
-            if not show_accessories:
-                return uterus_panel
-            
             # Трубы и яичники
             tubes = getattr(uterus, 'tubes', [])
             ovaries = getattr(uterus, 'ovaries', [])
             
-            if tubes or ovaries:
-                # Создаем панели для придатков
-                accessory_panels = []
-                
-                # Группируем по сторонам
-                for side in ['left', 'right']:
-                    tube = next((t for t in tubes if getattr(t, 'side', '') == side), None)
-                    ovary = next((o for o in ovaries if getattr(o, 'side', '') == side), None)
-                    
-                    if tube or ovary:
-                        # Компактный рендер для боковой панели
-                        side_panels = []
-                        if tube:
-                            side_panels.append(self.render_tube_detailed(tube))
-                        if ovary:
-                            side_panels.append(self.render_ovary_detailed(ovary))
-                        
-                        if len(side_panels) == 2:
-                            # Объединяем трубу и яичник вертикально
-                            combined = Table(box=None, show_header=False)
-                            combined.add_row(side_panels[0])
-                            combined.add_row(side_panels[1])
-                            accessory_panels.append(combined)
-                        else:
-                            accessory_panels.append(side_panels[0])
-                
-                # Компоновка: матка слева, придатки справа
-                layout = Table(box=None, show_header=False)
-                layout.add_column("Main", ratio=2)
-                layout.add_column("Accessories", ratio=3)
-                
-                accessories = Columns(accessory_panels, equal=True) if len(accessory_panels) > 1 else accessory_panels[0] if accessory_panels else Text("")
-                layout.add_row(uterus_panel, accessories)
-                
-                content = layout
-            else:
-                content = uterus_panel
+            accessory_panels = []
             
-            # Проверяем критические состояния
-            has_critical = (
-                getattr(uterus, 'is_everted', False) or
-                any(getattr(o, 'is_everted', False) for o in ovaries) or
-                any('EVERTED' in str(getattr(t, 'state', '')) for t in tubes)
-            )
+            if tubes:
+                for tube in tubes:
+                    tube_panel = self.render_tube_detailed(tube, compact=True)
+                    ovary = getattr(tube, 'ovary', None)
+                    if ovary:
+                        ovary_panel = self.render_ovary_detailed(ovary, compact=True)
+                        # Объединяем трубу и яичник
+                        combined = Table(box=None, show_header=False)
+                        combined.add_row(tube_panel)
+                        combined.add_row(ovary_panel)
+                        accessory_panels.append(combined)
+                    else:
+                        accessory_panels.append(tube_panel)
+            
+            # Компоновка
+            layout = Table(box=None, show_header=False)
+            layout.add_column("Main")
+            layout.add_column("Accessories")
+            
+            accessories = Columns(accessory_panels, equal=True) if accessory_panels else Text("")
+            layout.add_row(uterus_panel, accessories)
             
             return Panel(
-                content,
+                layout,
                 title=f"[bold magenta]🌸 {title}[/bold magenta]",
                 box=box.DOUBLE,
-                border_style="red" if has_critical else "bright_magenta",
+                border_style="bright_magenta",
                 padding=(1, 2)
             )
         
-        # Множественные матки
+        # Множественные матки (фантастика)
         uterus_panels = []
         for i, uterus in enumerate(uteri):
             panel = self.render_uterus_detailed(uterus, f"Матка {i+1}")
-            
-            if show_accessories:
-                tubes = getattr(uterus, 'tubes', [])
-                ovaries = getattr(uterus, 'ovaries', [])
-                
-                if tubes or ovaries:
-                    accessory_cols = []
-                    for tube in tubes:
-                        if tube:
-                            accessory_cols.append(self.render_tube_detailed(tube))
-                    for ovary in ovaries:
-                        if ovary:
-                            accessory_cols.append(self.render_ovary_detailed(ovary))
-                    
-                    if accessory_cols:
-                        combined = Table(box=None, show_header=False)
-                        combined.add_row(panel)
-                        combined.add_row(Columns(accessory_cols, equal=True))
-                        uterus_panels.append(combined)
-                    else:
-                        uterus_panels.append(panel)
-                else:
-                    uterus_panels.append(panel)
-            else:
-                uterus_panels.append(panel)
+            uterus_panels.append(panel)
         
         return Panel(
             Columns(uterus_panels, equal=True),
@@ -577,11 +455,9 @@ class UterusRenderer:
             # Трубы и яичники
             tubes = getattr(uterus, 'tubes', [])
             for tube in tubes:
-                if not tube:
-                    continue
                 side = getattr(tube, 'side', '?')
                 t_state = getattr(tube, 'state', None)
-                t_emoji, t_color = self.TUBE_STATE_STYLES.get(getattr(t_state, 'name', 'Unknown'), ('⚪', 'dim'))
+                t_emoji, t_color = self.TUBE_STATES.get(getattr(t_state, 'name', 'Unknown'), ('⚪', 'dim'))
                 t_stretch = getattr(tube, 'current_stretch', 1.0)
                 
                 t_label = f"[{t_color}]{t_emoji} Труба ({side}): ×{t_stretch:.1f}[/{t_color}]"
@@ -596,7 +472,7 @@ class UterusRenderer:
                 ovary = getattr(tube, 'ovary', None)
                 if ovary:
                     o_state = getattr(ovary, 'state', None)
-                    o_emoji, o_color = self.OVARY_STATE_STYLES.get(getattr(o_state, 'name', 'Unknown'), ('⚪', 'dim'))
+                    o_emoji, o_color = self.OVARY_STATES.get(getattr(o_state, 'name', 'Unknown'), ('⚪', 'dim'))
                     o_volume = ovary.calculate_volume() if hasattr(ovary, 'calculate_volume') else 0
                     
                     o_label = f"[{o_color}]{o_emoji} Яичник: {o_volume:.1f}ml[/{o_color}]"
@@ -624,15 +500,174 @@ class UterusRenderer:
             if getattr(uterus, 'is_everted', False):
                 part += "[red]![/red]"
             parts.append(part)
-            
-            # Добавляем статус яичников компактно
-            ovaries = getattr(uterus, 'ovaries', [])
-            for ovary in ovaries:
-                if ovary and getattr(ovary, 'is_everted', False):
-                    parts.append("[red]⚠️O[/red]")
         
         return Text.from_markup(f"🌸 {' '.join(parts)}")
     
     def print(self, renderable: RenderableType):
         """Вывести в консоль."""
         self.console.print(renderable)
+
+
+    # ============ НОВЫЙ МЕТОД ДЛЯ ОТОБРАЖЕНИЯ ЗАПОЛНЕНИЯ ============
+
+    def _create_fluid_bar(self, current: float, max_val: float, width: int = 20) -> str:
+        """Создать визуальный индикатор заполнения."""
+        if max_val <= 0:
+            return "[dim]" + "░" * width + "[/dim]"
+
+        ratio = min(1.0, current / max_val)
+        filled = int(width * ratio)
+        empty = width - filled
+
+        if ratio < 0.5:
+            color = "green"
+        elif ratio < 0.8:
+            color = "yellow"
+        else:
+            color = "red"
+
+        return f"[{color}]{'█' * filled}[/][dim]{'░' * empty}[/]"
+
+    def _render_fluid_mixture(self, mixture) -> str:
+        """Отрендерить смесь жидкостей."""
+        if not mixture or not hasattr(mixture, 'components'):
+            return "[dim]Пусто[/dim]"
+
+        components = mixture.components
+        if not components:
+            return "[dim]Пусто[/dim]"
+
+        parts = []
+        for fluid_type, amount in components.items():
+            name = fluid_type.name if hasattr(fluid_type, 'name') else str(fluid_type)
+            parts.append(f"{name}:{amount:.1f}ml")
+
+        return " | ".join(parts)
+
+    def render_fullness(self, uterus, title: str = "Заполнение системы") -> Panel:
+        """
+        Детальный рендер заполнения матки с распределением жидкости.
+        Показывает: матку, трубы, яичники, предметы.
+        """
+        from rich.table import Table
+        from rich import box
+
+        # Получаем данные
+        state = getattr(uterus, 'state', None)
+        emoji, color, state_desc = self._get_state_style(state)
+
+        inflation_status = getattr(uterus, 'inflation_status', None)
+        inf_emoji, inf_color, inf_desc = self._get_inflation_style(inflation_status)
+        inflation_ratio = getattr(uterus, 'inflation_ratio', 1.0)
+
+        # Объёмы
+        current_vol = getattr(uterus, 'current_volume', 50.0)
+        uterus_filled = getattr(uterus, 'uterus_filled', 0.0)
+        mixture = getattr(uterus, 'mixture', None)
+
+        tubes_filled = getattr(uterus, 'tubes_filled', 0.0)
+        ovaries_filled = getattr(uterus, 'ovaries_filled', 0.0)
+        total_filled = getattr(uterus, 'filled', 0.0)
+
+        objects = getattr(uterus, 'inserted_objects', [])
+
+        # Создаём таблицу
+        table = Table(box=box.ROUNDED, show_header=False, padding=(0, 1))
+        table.add_column("Param", style="cyan", width=18)
+        table.add_column("Value", style="white")
+
+        # Заголовок
+        table.add_row(
+            "[bold]СОСТОЯНИЕ[/bold]", 
+            f"[{color}]{emoji} {state_desc}[/{color}] | "
+            f"[{inf_color}]{inf_desc}[/{inf_color}] ({inflation_ratio:.1f}x)"
+        )
+
+        # === ЖИДКОСТЬ В МАТКЕ ===
+        table.add_row("", "")
+        table.add_row("[bold cyan]💧 МАТКА[/bold cyan]", "")
+
+        fill_bar = self._create_fluid_bar(uterus_filled, current_vol)
+        fill_pct = (uterus_filled / current_vol * 100) if current_vol > 0 else 0
+        table.add_row(
+            "Заполнение", 
+            f"{fill_bar} {uterus_filled:.1f}/{current_vol:.1f}ml ({fill_pct:.0f}%)"
+        )
+
+        if mixture and hasattr(mixture, 'components') and mixture.components:
+            fluid_info = self._render_fluid_mixture(mixture)
+            table.add_row("Состав", fluid_info)
+
+        # === ПРЕДМЕТЫ ===
+        if objects:
+            table.add_row("", "")
+            table.add_row("[bold cyan]📦 ПРЕДМЕТЫ[/bold cyan]", f"{len(objects)} шт.")
+            for i, obj in enumerate(objects):
+                name = getattr(obj, 'name', f"Объект {i}")
+                volume = getattr(obj, 'volume', 0) or getattr(obj, 'effective_volume', 0)
+                diameter = getattr(obj, 'diameter', 0)
+                table.add_row(
+                    f"  [{i}]",
+                    f"{name}: {volume:.1f}ml, Ø{diameter:.1f}cm"
+                )
+
+        # === ТРУБЫ ===
+        table.add_row("", "")
+        table.add_row("[bold magenta]🌊 ТРУБЫ[/bold magenta]", f"Всего: {tubes_filled:.1f}ml")
+
+        for tube in getattr(uterus, 'tubes', []):
+            if tube:
+                side = getattr(tube, 'side', '?').upper()
+                tube_fluid = getattr(tube, 'contained_fluid', 0.0)
+                tube_capacity = getattr(tube, 'max_fluid_capacity', 15.0)
+                tube_stretch = getattr(tube, 'current_stretch', 1.0)
+                tube_inflate = getattr(tube, 'inflation_ratio', 1.0)
+
+                tube_bar = self._create_fluid_bar(tube_fluid, tube_capacity, 15)
+                table.add_row(
+                    f"  {side}",
+                    f"{tube_bar} {tube_fluid:.1f}/{tube_capacity:.1f}ml "
+                    f"(×{tube_stretch:.1f}L ×{tube_inflate:.1f}W)"
+                )
+
+                tube_mixture = getattr(tube, 'fluid_mixture', None)
+                if tube_mixture and hasattr(tube_mixture, 'components') and tube_mixture.components:
+                    fluid_detail = self._render_fluid_mixture(tube_mixture)
+                    table.add_row("", f"  └─ {fluid_detail}")
+
+        # === ЯИЧНИКИ ===
+        table.add_row("", "")
+        table.add_row("[bold yellow]🥚 ЯИЧНИКИ[/bold yellow]", f"Всего: {ovaries_filled:.1f}ml")
+
+        for ovary in getattr(uterus, 'ovaries', []):
+            if ovary:
+                side = getattr(ovary, 'side', '?').upper()
+                ovary_fluid = getattr(ovary, 'fluid_content', 0.0)
+                ovary_capacity = getattr(ovary, 'max_fluid_capacity', 20.0)
+                follicles = getattr(ovary, 'follicle_sizes', [])
+
+                ovary_bar = self._create_fluid_bar(ovary_fluid, ovary_capacity, 15)
+                table.add_row(
+                    f"  {side}",
+                    f"{ovary_bar} {ovary_fluid:.1f}/{ovary_capacity:.1f}ml | "
+                    f"Фолликулов: {len(follicles)}"
+                )
+
+        # === ИТОГО ===
+        table.add_row("", "")
+        total_capacity = current_vol + sum(
+            getattr(t, 'max_fluid_capacity', 15.0) for t in getattr(uterus, 'tubes', []) if t
+        ) + sum(
+            getattr(o, 'max_fluid_capacity', 20.0) for o in getattr(uterus, 'ovaries', []) if o
+        )
+        total_bar = self._create_fluid_bar(total_filled, total_capacity, 20)
+        table.add_row(
+            "[bold]💧 ВСЕГО[/bold]",
+            f"{total_bar} {total_filled:.1f}/{total_capacity:.1f}ml"
+        )
+
+        return Panel(table, title=f"[bold]{title}[/bold]", border_style="cyan")
+
+
+# Для обратной совместимости
+UterusRender = UterusRenderer
