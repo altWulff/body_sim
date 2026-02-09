@@ -50,17 +50,29 @@ class UterineWall:
         return target_ratio <= max_stretch
 
     def stretch(self, ratio: float) -> bool:
-        """Попытка растяжения."""
-        if not self.can_stretch(ratio):
-            self.integrity -= 0.1
+        """Попытка растяжения до 500x."""
+        # Проверяем абсолютный предел 500x
+        if ratio > UTERUS_MAX_STRETCH:
+            self.integrity = max(0.0, self.integrity - 0.1)
             return False
 
+        # При растяжении >100x быстрая потеря целостности
+        if ratio > 100.0:
+            integrity_loss = (ratio - 100.0) * 0.001
+            self.integrity = max(0.01, self.integrity - integrity_loss)
+        # При растяжении >10x умеренная потеря
+        elif ratio > 10.0:
+            integrity_loss = (ratio - 10.0) * 0.0001
+            self.integrity = max(0.1, self.integrity - integrity_loss)
+            
         self.stretch_ratio = ratio
         self.peak_stretch = max(self.peak_stretch, ratio)
-        self.fatigue += (ratio - 1.0) * 0.1
-        self.fatigue = min(1.0, self.fatigue)
-
-        if ratio >= 3.5:
+        
+        # Усталость растёт с растяжением
+        self.fatigue = min(1.0, self.fatigue + (ratio - 1.0) * 0.01)
+        
+        # Перманентное растяжение при больших значениях
+        if ratio >= 2.0:
             self.is_permanently_stretched = True
 
         return True
@@ -499,34 +511,49 @@ class Ovary:
         self.fluid_mixture.components.clear()
         return removed
 
-    def leak_to_tube(self, amount: float = None) -> float:
+    def leak_to_tube(self, amount: float = None) -> Dict['FluidType', float]:
         """
-        Утечка жидкости обратно в трубу.
+        Утечка жидкости обратно в трубу с сохранением типов.
 
         Args:
             amount: Количество (если None, используется leak_rate)
 
         Returns:
-            Количество утечки
+            Словарь с типами и количествами утечки
         """
         if not self.attached_tube:
-            return 0.0
+            return {}
 
         if amount is None:
             amount = self.leak_rate
 
-        actual = min(amount, self.fluid_content)
-        if actual > 0:
-            # Определяем преобладающий тип жидкости
-            primary_fluid = self.get_primary_fluid()
+        if amount <= 0 or self.fluid_content <= 0:
+            return {}
 
-            self.fluid_content -= actual
-            self.fluid_mixture.remove(actual)
+        # Получаем состав жидкости
+        fluids = self.get_fluid_composition()
+        if not fluids:
+            return {}
 
-            # Возвращаем в трубу
-            self.attached_tube.receive_backflow(actual)
+        total = sum(fluids.values())
+        if total <= 0:
+            return {}
 
-        return actual
+        leaked: Dict['FluidType', float] = {}
+
+        # Утечка пропорционально составу
+        for fluid_type, fluid_amount in fluids.items():
+            leak_amount = min(amount * (fluid_amount / total), fluid_amount)
+            if leak_amount > 0:
+                # Удаляем из яичника
+                self.fluid_content -= leak_amount
+                self.fluid_mixture.remove(leak_amount)
+                
+                # Передаём в трубу с сохранением типа
+                self.attached_tube.receive_backflow(leak_amount, fluid_type)
+                leaked[fluid_type] = leaked.get(fluid_type, 0) + leak_amount
+
+        return leak_end
 
     def get_fluid_composition(self) -> Dict[FluidType, float]:
         """Получить состав жидкости в яичнике."""
@@ -808,12 +835,28 @@ class FallopianTube:
         self.fluid_mixture.remove(transferred)
 
         return transferred
+    def receive_backflow(self, amount: float, fluid_type: 'FluidType' = None) -> float:
+        """
+        Принять обратный поток от яичника с сохранением типа жидкости.
 
-    def receive_backflow(self, amount: float) -> float:
-        """Принять обратный поток от яичника."""
+        Args:
+            amount: Количество жидкости
+            fluid_type: Тип жидкости (если None - будет WATER)
+
+        Returns:
+            Фактически принятое количество
+        """
+        if amount <= 0:
+            return 0.0
+
         # Сопротивление обратному току
         actual = amount * (1.0 - self.backflow_resistance)
-        return self.add_fluid(actual)
+        
+        if actual > 0:
+            # Добавляем с правильным типом
+            self.add_fluid(actual, fluid_type)
+            
+        return actual
 
     def evert_with_ovary(self):
         self.state = FallopianTubeState.EVERTED_WITH_OVARY
@@ -1176,30 +1219,53 @@ class Uterus:
 
         return amount - distributed
 
-    def _handle_backflow(self) -> float:
+    def _handle_backflow(self) -> Dict['FluidType', float]:
         """
         Обработать обратный поток от яичников при переполнении.
+        Сохраняет типы жидкостей.
 
         Returns:
-            Количество жидкости, вернувшееся в матку
+            Словарь с типами и количествами вернувшейся жидкости
         """
         if not self.backflow_enabled:
-            return 0.0
+            return {}
 
-        backflow_total = 0.0
+        backflow_total: Dict['FluidType', float] = {}
 
         for ovary in self.ovaries:
-            if ovary and ovary.fluid_content > ovary.max_fluid_capacity * 0.9:
-                # Избыточная жидкость возвращается
-                excess = ovary.fluid_content - ovary.max_fluid_capacity * 0.9
-                returned = ovary.remove_fluid(excess * 0.5)
+            if not ovary or ovary.fluid_content <= ovary.max_fluid_capacity * 0.9:
+                continue
 
-                # Через трубу обратно в матку
-                if ovary.attached_tube:
-                    ovary.attached_tube.receive_backflow(returned)
-                    backflow_total += returned * ovary.attached_tube.backflow_resistance
+            # Избыточная жидкость возвращается
+            excess = ovary.fluid_content - ovary.max_fluid_capacity * 0.9
+            
+            # Получаем состав жидкости из яичника
+            ovary_fluids = ovary.get_fluid_composition()
+            if not ovary_fluids:
+                continue
+
+            # Рассчитываем пропорции для возврата
+            total_ovary_fluid = sum(ovary_fluids.values())
+            if total_ovary_fluid <= 0:
+                continue
+
+            # Удаляем жидкость из яичника и возвращаем в матку с сохранением типов
+            for fluid_type, amount in ovary_fluids.items():
+                # Сколько возвращаем этого типа
+                return_ratio = excess / total_ovary_fluid
+                return_amount = amount * return_ratio * 0.5  # 50% избытка возвращается
+                
+                if return_amount > 0:
+                    # Удаляем из яичника
+                    actual_removed = ovary.remove_fluid(return_amount)
+                    
+                    # Добавляем в матку с правильным типом
+                    if actual_removed > 0:
+                        self.mixture.add(fluid_type, actual_removed)
+                        backflow_total[fluid_type] = backflow_total.get(fluid_type, 0) + actual_removed
 
         return backflow_total
+        
 
     def _apply_peristalsis(self, dt: float):
         """Применить перистальтику для перемещения жидкости."""
@@ -1279,15 +1345,17 @@ class Uterus:
 
         flow_rate = 0.8 * area * pressure_diff * flow_efficiency / max(viscosity, 0.1)
         return max(0.0, flow_rate) * (self.leak_factor / 15.0)
-
+        
     def _determine_state(self, pressure: float) -> UterusState:
-        """Определение состояния."""
-        if self.uterus_filled <= 0:
+        """Определение состояния с учётом наличия жидкости."""
+        # Если есть жидкость - не может быть EMPTY
+        if self.uterus_filled <= 0 and self.tubes_filled <= 0 and self.ovaries_filled <= 0:
             return UterusState.EMPTY
 
         if self.is_everted:
             return UterusState.EVERTED
 
+        # При низком давлении но наличии жидкости - NORMAL или TENSE
         if pressure < 0.5:
             return UterusState.NORMAL
         if pressure < 1.0:
@@ -1301,86 +1369,112 @@ class Uterus:
     # ============ FLUID MANAGEMENT ============
 
     def add_fluid(self, fluid: 'FluidType | BreastFluid', amount: float) -> float:
-        """Добавить жидкость с распределением по системе и автоматическим растяжением."""
+        """Добавить жидкость с распределением по системе и автоматическим растяжением (без while)."""
         if amount <= 0:
             return 0.0
-
+    
         fluid_type = fluid.fluid_type if isinstance(fluid, BreastFluid) else fluid
         total_added = 0.0
         remaining = amount
-
-        # Максимальное растяжение 500x
-        UTERUS_MAX_STRETCH = 500.0
-
-        while remaining > 0:
-            # Проверяем доступный объём с текущим растяжением
-            available = self.available_volume
-
-            if remaining <= available:
-                # Всё помещается
-                self.mixture.add(fluid_type, remaining)
-                total_added += remaining
-                
-                # Распределяем часть в трубы
-                self._distribute_fluid_to_tubes(remaining * self.tube_fill_ratio, fluid_type)
-                
-                self._emit("fluid_added", amount=total_added, fluid_type=fluid_type)
-                return total_added
-
-            # Не помещается - заполняем что можем
-            if available > 0:
-                self.mixture.add(fluid_type, available)
-                total_added += available
-                remaining -= available
-                self._distribute_fluid_to_tubes(available * self.tube_fill_ratio, fluid_type)
-
-            # Пытаемся растянуть стенки
-            current_stretch = self.walls.stretch_ratio
-            current_inflation = self.inflation_ratio
-            current_total = current_stretch * current_inflation
-
+        stretch_attempts = 0
+        max_stretch_attempts = 10  # Лимит попыток растяжения
+    
+        # Фаза 1: Заполнение доступного объёма без растяжения
+        available = self.available_volume
+        if available > 0:
+            add_now = min(remaining, available)
+            self.mixture.add(fluid_type, add_now)
+            total_added += add_now
+            remaining -= add_now
+            self._distribute_fluid_to_tubes(add_now * self.tube_fill_ratio, fluid_type)
+    
+        # Если всё поместилось - выходим
+        if remaining <= 0:
+            self._emit("fluid_added", amount=total_added, fluid_type=fluid_type)
+            return total_added
+    
+        # Фаза 2: Поэтапное растяжение и заполнение (без while, используем for с лимитом)
+        for attempt in range(max_stretch_attempts):
+            if remaining <= 0:
+                break
+    
+            current_total = self.walls.stretch_ratio * self.inflation_ratio
+            
+            # Проверяем предел
             if current_total >= UTERUS_MAX_STRETCH:
-                # Достигли предела
-                self._emit("fluid_added", amount=total_added, fluid_type=fluid_type, 
+                self._emit("fluid_added", amount=total_added, fluid_type=fluid_type,
                           overflow=remaining, max_reached=True)
                 return total_added
-
-            # Рассчитываем необходимое растяжение
-            # Нужный объём = текущий + remaining
-            needed_volume = self.uterus_filled + remaining
-            # Добавляем запас 10%
-            needed_volume *= 1.1
-            
-            # Целевое общее растяжение
+    
+            # Рассчитываем целевое растяжение
+            needed_volume = (self.uterus_filled + remaining) * 1.1
             base_capacity = self.cavity_volume * (self.inflation_ratio ** 3)
-            if base_capacity > 0:
-                target_total_stretch = (needed_volume / base_capacity) ** (1/3)
+            
+            if base_capacity <= 0:
+                target_total = current_total + 1.0
             else:
-                target_total_stretch = current_total + 1.0
-
-            target_total_stretch = min(target_total_stretch, UTERUS_MAX_STRETCH)
-
-            # Сначала пробуем инфляцию (меньше давления)
-            if current_inflation < min(4.0, target_total_stretch):
-                new_inflation = min(target_total_stretch / current_stretch, 4.0)
-                if self.inflate(new_inflation):
+                target_total = (needed_volume / base_capacity) ** (1/3)
+            
+            target_total = min(target_total, UTERUS_MAX_STRETCH)
+    
+            # Пытаемся инфлировать (до 4.0)
+            if self.inflation_ratio < 4.0:
+                target_inflation = min(target_total / self.walls.stretch_ratio, 4.0)
+                if target_inflation > self.inflation_ratio:
+                    if self.inflate(target_inflation):
+                        # После инфляции пытаемся добавить ещё
+                        available = self.available_volume
+                        if available > 0:
+                            add_now = min(remaining, available)
+                            self.mixture.add(fluid_type, add_now)
+                            total_added += add_now
+                            remaining -= add_now
+                            self._distribute_fluid_to_tubes(add_now * self.tube_fill_ratio, fluid_type)
+                        continue
+    
+            # Пытаемся растянуть стенки
+            target_stretch = target_total / self.inflation_ratio
+            if target_stretch > self.walls.stretch_ratio:
+                # Пошаговое растяжение (макс 1.5x за раз для безопасности)
+                step_stretch = min(
+                    target_stretch,
+                    self.walls.stretch_ratio * 1.5,
+                    UTERUS_MAX_STRETCH
+                )
+                
+                if step_stretch > self.walls.stretch_ratio and self.walls.stretch(step_stretch):
+                    # После растяжения пытаемся добавить ещё
+                    available = self.available_volume
+                    if available > 0:
+                        add_now = min(remaining, available)
+                        self.mixture.add(fluid_type, add_now)
+                        total_added += add_now
+                        remaining -= add_now
+                        self._distribute_fluid_to_tubes(add_now * self.tube_fill_ratio, fluid_type)
                     continue
-
-            # Затем растяжение стенок
-            target_stretch = target_total_stretch / current_inflation
-            target_stretch = min(target_stretch, self.walls.elasticity * 4.0)
-
-            if target_stretch > current_stretch:
-                if self.walls.stretch(target_stretch):
-                    continue
-
-            # Если не удалось растянуться - выходим
+    
+            # Если не удалось ни инфлировать, ни растянуть - выходим
+            break
+    
+        # Финальная попытка добавить остаток
+        if remaining > 0:
+            available = self.available_volume
+            if available > 0:
+                add_now = min(remaining, available)
+                self.mixture.add(fluid_type, add_now)
+                total_added += add_now
+                remaining -= add_now
+                self._distribute_fluid_to_tubes(add_now * self.tube_fill_ratio, fluid_type)
+    
+        # Эмитим результат
+        if remaining > 0:
             self._emit("fluid_added", amount=total_added, fluid_type=fluid_type,
-                      overflow=remaining, stretch_failed=True)
-            return total_added
-
+                      overflow=remaining, incomplete=True)
+        else:
+            self._emit("fluid_added", amount=total_added, fluid_type=fluid_type)
+    
         return total_added
-        
+    
 
     def remove_fluid(self, amount: float) -> float:
         """Удалить жидкость (сначала из матки)."""
@@ -1409,34 +1503,37 @@ class Uterus:
                     remaining -= from_ovary
 
         return amount - remaining
-
-    def drain_all(self) -> Dict[FluidType, float]:
-        """Полностью опустошить всю систему."""
-        removed = {}
+        
+    def drain_all(self) -> Dict['FluidType', float]:
+        """Полностью опустошить всю систему с сохранением типов жидкостей."""
+        removed: Dict['FluidType', float] = {}
 
         # Из матки
-        for fluid_type in list(self.mixture.components.keys()):
-            amount = self.mixture.components[fluid_type]
+        for fluid_type, amount in list(self.mixture.components.items()):
             removed[fluid_type] = removed.get(fluid_type, 0) + amount
-            del self.mixture.components[fluid_type]
+        self.mixture.components.clear()
 
         # Из труб
         for tube in self.tubes:
-            if tube:
-                for ft, amount in tube.fluid_mixture.components.items():
-                    removed[ft] = removed.get(ft, 0) + amount
-                tube.contained_fluid = 0.0
-                tube.fluid_mixture.components.clear()
+            if not tube:
+                continue
+            for fluid_type, amount in tube.fluid_mixture.components.items():
+                removed[fluid_type] = removed.get(fluid_type, 0) + amount
+            tube.contained_fluid = 0.0
+            tube.fluid_mixture.components.clear()
 
-        # Из яичников
+        # Из яичников - теперь сохраняем типы
         for ovary in self.ovaries:
-            if ovary:
-                # Яичники содержат безтиповую жидкость
-                if ovary.fluid_content > 0:
-                    removed[FluidType.WATER] = removed.get(FluidType.WATER, 0) + ovary.fluid_content
-                    ovary.fluid_content = 0.0
+            if not ovary:
+                continue
+            ovary_fluids = ovary.get_fluid_composition()
+            for fluid_type, amount in ovary_fluids.items():
+                removed[fluid_type] = removed.get(fluid_type, 0) + amount
+            ovary.fluid_content = 0.0
+            ovary.fluid_mixture.components.clear()
 
-        self._emit("drained", amount=sum(removed.values()), fluids=removed)
+        total_removed = sum(removed.values())
+        self._emit("drained", amount=total_removed, fluids=removed)
         return removed
 
     # ============ TICK & UPDATE ============
@@ -1451,8 +1548,6 @@ class Uterus:
 
         # 2. Обратный поток
         backflow = self._handle_backflow()
-        if backflow > 0:
-            self.mixture.add(FluidType.WATER, backflow)  # Упрощение
 
         # 3. Перистальтика
         self._apply_peristalsis(dt)

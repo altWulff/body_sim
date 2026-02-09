@@ -494,8 +494,6 @@ def register_reaction_commands(registry, reaction_system: 'BreastReactionSystem'
         
         if "roxy" in body_type or "migurdia" in body_type:
             profile_name = "roxy"
-        elif "misaka" in body_type:
-            profile_name = "misaka"
         
         try:
             # Получаем реакции

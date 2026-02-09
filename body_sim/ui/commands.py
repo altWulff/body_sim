@@ -11,6 +11,7 @@ from rich.panel import Panel
 from rich import box  # Импортируем box модули
 
 from body_sim.characters.roxy_migurdia import register_roxy_command
+from body_sim.characters.uterus_reactions import integrate_with_tick
 
 console = Console()
 
@@ -506,15 +507,17 @@ def cmd_stimulate(args: List[str], ctx: CommandContext):
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
 
-
 def cmd_tick(args: List[str], ctx: CommandContext):
-    """Обновить симуляцию."""
     dt = float(args[0]) if args else 1.0
-
+    
     for body in ctx.bodies:
         body.tick(dt)
-
+    
+    # Автоматические реакции матки
+    integrate_with_tick(ctx.bodies, dt, console)
+    
     console.print(f"[green]Ticked {len(ctx.bodies)} bodies (dt={dt})[/green]")
+    
 
 
 def cmd_add_fluid(args: List[str], ctx: CommandContext):
@@ -1323,16 +1326,23 @@ def create_registry() -> CommandRegistry:
     # Fallopian tubes
     registry.register(Command("tube", ["ft", "tubes"], "Fallopian tube management", "tube [action] [side] [args...]", cmd_tube, "uterus"))
 
-
     register_roxy_command(registry)
     # Реакции (если доступны)
     try:
         from body_sim.characters.breast_reactions import get_reaction_system, register_reaction_commands
         register_reaction_commands(registry, get_reaction_system())
-        console.print("[dim]Reaction commands loaded[/dim]")
+        console.print("[dim]Breasts reaction commands loaded[/dim]")
     except ImportError as e:
-        console.print(f"[dim]Reaction commands not available: {e}[/dim]")
+        console.print(f"[dim]Breasts reaction commands not available: {e}[/dim]")
     except Exception as e:
-        console.print(f"[yellow]Warning: Failed to load reaction commands: {e}[/yellow]")
-
+        console.print(f"[yellow]Warning: Failed to load breasts reaction commands: {e}[/yellow]")
+        
+    try:
+        from body_sim.characters.uterus_reactions import get_uterus_reaction_system, register_uterus_reaction_commands
+        register_uterus_reaction_commands(registry, get_uterus_reaction_system())
+        console.print("[dim]Uterus reaction commands loaded[/dim]")
+    except ImportError as e:
+        console.print(f"[dim]Uterus reaction commands not available: {e}[/dim]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to load uterus reaction commands: {e}[/yellow]")
     return registry
