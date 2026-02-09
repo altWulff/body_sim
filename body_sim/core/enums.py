@@ -324,7 +324,8 @@ class UterusInflationStatus(Enum):
     DISTENDED = "distended"        # Выпучена
     HYPERDISTENDED = "hyper"       # Сильно выпучена
     RUPTURE_RISK = "rupture_risk"  # Риск разрыва
-    RUPTURED = "ruptured"      
+    RUPTURED = "ruptured"          # Разорвана
+    
 
 class CervixState(Enum):
     """Состояния шейки матки."""

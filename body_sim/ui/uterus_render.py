@@ -646,12 +646,47 @@ class UterusRenderer:
                 ovary_capacity = getattr(ovary, 'max_fluid_capacity', 20.0)
                 follicles = getattr(ovary, 'follicle_sizes', [])
 
+                # Инфляция и растяжение
+                stretch = getattr(ovary, 'stretch_ratio', 1.0)
+                inflate = getattr(ovary, 'inflation_ratio', 1.0)
+                inf_status = getattr(ovary, 'inflation_status', None)
+                inf_value = getattr(inf_status, 'value', 'normal') if inf_status else 'normal'
+
                 ovary_bar = self._create_fluid_bar(ovary_fluid, ovary_capacity, 15)
+
+                # Основная строка с размерами
                 table.add_row(
                     f"  {side}",
                     f"{ovary_bar} {ovary_fluid:.1f}/{ovary_capacity:.1f}ml | "
                     f"Фолликулов: {len(follicles)}"
                 )
+
+                # Размеры и статус
+                if stretch > 1.1 or inflate > 1.1:
+                    table.add_row(
+                        "",
+                        f"  [dim]Size: {ovary.current_length:.1f}×{ovary.current_width:.1f}×{ovary.current_thickness:.1f}cm "
+                        f"(×{stretch:.1f}S ×{inflate:.1f}I) [{inf_value.upper()}][/dim]"
+                    )
+
+                # Давление и натяжение
+                pressure = getattr(ovary, 'internal_pressure', 0.0)
+                if pressure > 0.5:
+                    tension = ovary.get_skin_tension() if hasattr(ovary, 'get_skin_tension') else 0.0
+                    table.add_row(
+                        "",
+                        f"  [dim]Pressure: {pressure:.2f} | Tension: {tension:.0%}[/dim]"
+                    )
+
+                # Состав жидкости в яичнике
+                ovary_mixture = getattr(ovary, 'fluid_mixture', None)
+                if ovary_mixture and hasattr(ovary_mixture, 'components') and ovary_mixture.components:
+                    fluid_detail = self._render_fluid_mixture(ovary_mixture)
+                    table.add_row("", f"  └─ {fluid_detail}")
+
+                # Предупреждения
+                if getattr(ovary, 'is_permanently_stretched', False):
+                    table.add_row("", "  [yellow]⚠️ Permanently stretched[/yellow]")
 
         # === ИТОГО ===
         table.add_row("", "")
