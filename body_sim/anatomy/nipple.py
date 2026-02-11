@@ -32,7 +32,7 @@ class Nipple:
     
     # Обратная ссылка на ареолу
     areola: 'Areola' = field(default=None, repr=False)
-
+        
     def __post_init__(self):
         if self.base_length < 0:
             raise ValueError("Length must be non-negative")
@@ -41,11 +41,53 @@ class Nipple:
         
         self.current_length = self.base_length
         self.current_width = self.base_width
+        
+        # Max gape зависит от ширины соска (до 90% ширины)
+        # Не ограничиваем жестко - пусть растягивается от давления
         self.max_gape_diameter = self.current_width * 0.9
         
         self.gape_diameter = max(self.gape_diameter, self.base_min_gape_diameter)
         self.gape_diameter = min(self.gape_diameter, self.max_gape_diameter)
 
+    @property
+    def effective_gape(self) -> float:
+        """Эффективный диаметр отверстия без жесткого ограничения."""
+        if not self.is_open:
+            return 0.0
+        openness = self.gape_diameter / self.current_width if self.current_width > 0 else 0
+        return self.gape_diameter * openness
+    
+    def stretch(self, factor: float) -> None:
+        """Растянуть сосок - увеличивает max_gape пропорционально."""
+        if factor <= 0:
+            return
+        
+        self.current_width *= factor
+        self.current_length *= factor
+        
+        # Обновляем max_gape (90% от новой ширины)
+        self.max_gape_diameter = self.current_width * 0.9
+        
+        # Если текущий gape больше нового max, уменьшаем
+        if self.gape_diameter > self.max_gape_diameter:
+            self.gape_diameter = self.max_gape_diameter
+        
+        if self.areola is not None:
+            self.areola._update_diameter()
+    
+    def open_from_pressure(self, pressure: float, max_pressure: float = 2.0) -> None:
+        """Открыть сосок от давления в груди (0..max_pressure -> 0..max_gape)."""
+        if pressure <= 0:
+            return
+        
+        # Чем больше давление, тем больше отверстие
+        openness_ratio = min(pressure / max_pressure, 1.0)
+        target_gape = self.max_gape_diameter * openness_ratio
+        
+        # Плавное открытие (30% за шаг)
+        self.gape_diameter += (target_gape - self.gape_diameter) * 0.3
+        self.gape_diameter = max(self.gape_diameter, self.base_min_gape_diameter)
+        
     @property
     def length(self) -> float:
         return self.current_length
@@ -66,13 +108,6 @@ class Nipple:
     @property
     def is_open(self) -> bool:
         return self.gape_diameter > 0.05
-    
-    @property
-    def effective_gape(self) -> float:
-        if not self.is_open:
-            return 0.0
-        openness = self.gape_diameter / self.current_width
-        return self.gape_diameter * openness
 
     @property
     def stretch_ratio(self) -> float:

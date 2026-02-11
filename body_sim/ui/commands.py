@@ -271,7 +271,26 @@ def cmd_help(args: List[str], ctx: CommandContext):
   [green]remove <row> [col] [obj_idx][/green]
                             - Remove object from breast
 
+[bold yellow]📊 FULLNESS & DETAILS (NEW)[/bold yellow]
+
+  [green]breasts[/green]                 - Show breast grid overview
+  [green]breasts fullness [r] [c][/green]  - [cyan]Detailed fullness display[/cyan]
+                            Shows: fluid volume, mixture composition, 
+                            inserted objects, nipple status, areola params
+  [green]breasts detail [r] [c][/green]  - Detailed breast anatomy
+  [green]breasts status [r] [c][/green]  - Compact status for one breast
+  [green]breasts grid[/green]           - Show full breast grid
+
 [bold magenta]States:[/bold magenta] EMPTY → NORMAL → TENSE → [red]OVERPRESSURED[/red] → [blue]LEAKING[/blue]
+
+[bold magenta]Fullness Display includes:[/bold magenta]
+  • Visual fill bars (color-coded: green/yellow/red)
+  • Fluid mixture composition (MILK:50ml | CUM:30ml...)
+  • Inserted objects list with volumes
+  • Nipple status (open/closed, gape diameter, leaking)
+  • Areola parameters (diameter, sensitivity, puffiness)
+  • Physical stats (pressure, sag, elasticity)
+  • Lactation and inflation status
         """,
 
         "genitals": """
@@ -496,6 +515,62 @@ def _print_reaction(console, reaction, source: str):
     console.print(f"\n[{color}]{prefix} {reaction.text}[/{color}]")
     if reaction.sound_effect:
         console.print(f"[dim italic]{reaction.sound_effect}[/dim italic]")
+
+
+# ============ НОВАЯ КОМАНДА BREASTS ============
+
+def cmd_breasts(args: List[str], ctx: CommandContext):
+    """Управление грудью - показ fullness и детальной информации."""
+    if not ctx.active_body or not ctx.active_body.has_breasts:
+        console.print("[red]No breasts available[/red]")
+        return
+
+    from body_sim.ui.breast_render import BreastRenderer
+    renderer = BreastRenderer()
+    
+    if not args:
+        # Показать всю сетку грудей в компактном виде
+        console.print(renderer.render_grid(ctx.active_body.breast_grid, "Breast Grid"))
+        return
+    
+    action = args[0].lower()
+    args = args[1:]
+    
+    # Определяем индексы груди (по умолчанию [0,0])
+    row = int(args[0]) if args else 0
+    col = int(args[1]) if len(args) > 1 else 0
+    
+    try:
+        breast = ctx.active_body.breast_grid.get(row, col)
+    except (IndexError, AttributeError):
+        console.print(f"[red]Invalid breast index [{row},{col}][/red]")
+        return
+    
+    if action == "fullness":
+        """Показать детальное заполнение груди (аналог uterus fullness)."""
+        panel = renderer.render_fullness(breast, f"Breast [{row},{col}] Fullness")
+        console.print(panel)
+        
+    elif action == "detail":
+        """Показать детальную информацию о груди."""
+        label = f"Breast [{row},{col}]"
+        console.print(renderer.render_breast_detailed(breast, label))
+        
+    elif action == "status":
+        """Показать компактный статус."""
+        console.print(renderer.render_breast_compact(breast, f"[{row},{col}]"))
+        
+    elif action == "grid":
+        """Показать всю сетку грудей."""
+        console.print(renderer.render_grid(ctx.active_body.breast_grid))
+        
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        console.print("[dim]Available actions:[/dim]")
+        console.print("  [cyan]fullness [r] [c][/cyan] - Detailed fullness display (fluid + objects)")
+        console.print("  [cyan]detail [r] [c][/cyan]   - Detailed breast info")
+        console.print("  [cyan]status [r] [c][/cyan]   - Compact status")
+        console.print("  [cyan]grid[/cyan]           - Show all breasts grid")
 
 
 
@@ -1428,7 +1503,10 @@ def create_registry() -> CommandRegistry:
     # Stimulation
     registry.register(Command("stimulate", ["stim"], "Stimulate body part", "stimulate <region> [idx] [intensity]", cmd_stimulate, "stimulation"))
 
-    # Breasts
+    # Breasts - НОВАЯ КОМАНДА FULLNESS
+    registry.register(Command("breasts", ["breast", "b"], "Breast fullness and details", "breasts [fullness|detail|status|grid] [row] [col]", cmd_breasts, "breasts"))
+    
+    # Старые команды груди
     registry.register(Command("add_fluid", ["add", "fill"], "Add fluid to breast", "add_fluid <type> <amount> [row] [col]", cmd_add_fluid, "breasts"))
     registry.register(Command("drain", ["empty"], "Drain breast fluid", "drain [percentage]", cmd_drain, "breasts"))
     registry.register(Command("lactation", ["lact"], "Control lactation", "lactation [start|stop|stimulate] [row] [col]", cmd_lactation, "breasts"))
@@ -1447,6 +1525,7 @@ def create_registry() -> CommandRegistry:
 
     # Fallopian tubes
     registry.register(Command("tube", ["ft", "tubes"], "Fallopian tube management", "tube [side] [action] [args...] [idx]", cmd_tube, "uterus"))
+    
     # Combined reactions command
     registry.register(Command(
         "reactions", ["react", "r"],

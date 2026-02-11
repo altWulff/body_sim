@@ -40,10 +40,13 @@ class FluidMixture:
         if total <= 0:
             return
         ratio = amount / total
+        actual = min(amount, total)
         for ft in list(self.components):
             self.components[ft] -= self.components[ft] * ratio
             if self.components[ft] <= 0:
                 del self.components[ft]
+        return actual
+    
 
     def viscosity(self, defs: Dict[FluidType, 'BreastFluid']) -> float:
         total = self.total()
