@@ -319,7 +319,7 @@ class Clitoris(Genital):
 
 
 @dataclass
-class Vagina(Genital):
+class Vagina(Genital, PenetrableOrgan):
     vagina_type: VaginaType = field(default=VaginaType.HUMAN)
     state: VaginaState = field(default=VaginaState.NORMAL)
     base_depth: float = 10.0
@@ -347,10 +347,6 @@ class Vagina(Genital):
 
     def __post_init__(self):
         """Применяем характеристики типа."""
-        self._apply_type_stats()
-        self._recalculate_dimensions()
-
-    def __post_init__(self):
         Genital.__init__(self)
         PenetrableOrgan.__init__(self)
         self._apply_type_stats()

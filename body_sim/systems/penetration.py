@@ -304,13 +304,6 @@ class CrossBodyPenetration:
     
     def __init__(self, source_body: Any, target_body: Any, 
                  source_ref: IndexedOrganRef, target_ref: IndexedOrganRef):
-        """
-        Args:
-            source_body: Тело-источник (с penises[])
-            target_body: Тело-цель (с vaginas[]/anuses[])
-            source_ref: Ссылка на пенис (IndexedOrganRef("penis", 0))
-            target_ref: Ссылка на целевой орган (IndexedOrganRef("vagina", 0))
-        """
         
         self.source = source_body
         self.target = target_body
@@ -318,67 +311,62 @@ class CrossBodyPenetration:
         self.target_ref = target_ref
         
         self.active = False
-        self.penetration_data: Optional[PenetrationData] = None
-        self.insertable_penis: Optional[InsertableObject] = None
+        self.penetration_data = None
+        self.insertable_penis = None
         
-        # Получаем реальные объекты органов с детальной диагностикой
+        # Получаем пенис (источник)
         self.penis = self._get_organ_from_body(source_body, source_ref)
         if not self.penis:
-            # Детальная диагностика
-            available_info = []
-            plural_attr = source_ref.organ_type + "s"
+            raise ValueError(f"У {source_body.name} нет {source_ref.full_name}")
             
-            if hasattr(source_body, plural_attr):
-                val = getattr(source_body, plural_attr)
-                if isinstance(val, list):
-                    items = [f"{type(x).__name__ if x else 'None'}" for x in val]
-                    available_info.append(f"{plural_attr}=[{', '.join(items)}]")
-                else:
-                    available_info.append(f"{plural_attr}={type(val).__name__}")
-            
-            if hasattr(source_body, source_ref.organ_type):
-                val = getattr(source_body, source_ref.organ_type)
-                available_info.append(f"{source_ref.organ_type}={type(val).__name__ if val else 'None'}")
-            
-            raise ValueError(
-                f"У {source_body.name} нет {source_ref.full_name}. "
-                f"Доступно: {available_info if available_info else 'нет атрибутов'}"
-            )
-            
+        # Получаем целевой орган
         self.target_organ = self._get_organ_from_body(target_body, target_ref)
         if not self.target_organ:
-            raise ValueError(f"У {target_body.name} нет {target_ref.full_name}")
+            # Детальная диагностика для цели
+            plural = target_ref.organ_type + "s"
+            if hasattr(target_body, plural):
+                val = getattr(target_body, plural)
+                if isinstance(val, list) and len(val) == 0:
+                    raise ValueError(
+                        f"У {target_body.name} нет {target_ref.full_name} - "
+                        f"список {plural} существует, но ПУСТОЙ. "
+                        f"Возможно, персонаж создан без этого органа."
+                    )
             
-        self.target_organ = self._get_organ_from_body(target_body, target_ref)
-        if not self.target_organ:
             raise ValueError(f"У {target_body.name} нет {target_ref.full_name}")
     
     def _get_organ_from_body(self, body: Any, ref: IndexedOrganRef) -> Optional[Any]:
         """Получить орган из тела по ссылке с индексом"""
-        plural_name = ref.organ_type + "s"  # "penis" -> "penises"
+        plural_dict = {
+            "penis": "penises",
+            "vagina": "vaginas",
+            "anus": "anus"
+        }
+        plural_name = plural_dict[ref.organ_type]
         
-        # Проверяем список органов (penises, vaginas, anuses)
+        # Проверяем наличие списка (penises, vaginas, anuses)
         if hasattr(body, plural_name):
             organs_list = getattr(body, plural_name)
-            if isinstance(organs_list, list):
-                if ref.index < len(organs_list):
+            
+            if organs_list is not None and hasattr(organs_list, '__getitem__'):
+                length = len(organs_list) if hasattr(organs_list, '__len__') else '?'
+                
+                if length == 0:
+                    print(f"DEBUG: {plural_name} exists but is EMPTY (length 0)")
+                    return None
+                    
+                if ref.index < length:
                     organ = organs_list[ref.index]
-                    # Проверяем что орган не None
                     if organ is not None:
                         return organ
                     else:
-                        # Элемент списка - None, возможно есть singular fallback
-                        pass
-            else:
-                # Если не список, но индекс 0, возвращаем как единственный объект
-                if ref.index == 0 and organs_list is not None:
-                    return organs_list
+                        print(f"DEBUG: {plural_name}[{ref.index}] is None")
+                else:
+                    print(f"DEBUG: index {ref.index} out of range for {plural_name} (length {length})")
         
-        # Fallback на singular атрибут (penis, vagina, anus)
+        # Fallback на singular
         if hasattr(body, ref.organ_type) and ref.index == 0:
-            singular_organ = getattr(body, ref.organ_type)
-            if singular_organ is not None:
-                return singular_organ
+            return getattr(body, ref.organ_type)
         
         return None
     
@@ -405,7 +393,7 @@ class CrossBodyPenetration:
             texture="skin"
         )
         
-        # Пытаемся вставить
+        # ИСПРАВЛЕНИЕ: insert_object (без 's') - это метод, не атрибут
         success, msg = self.target_organ.insert_object(self.insertable_penis, force)
         
         if success:
