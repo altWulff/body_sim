@@ -7,6 +7,7 @@ import sys
 from body_sim.ui.console import run_console
 from body_sim.body.factory import BodyFactory
 from body_sim.systems.events import EventfulBody
+from body_sim.characters.roxy_migurdia import RoxyMigurdia
 
 def create_demo_bodies():
     """Создание демонстрационных тел."""
@@ -21,7 +22,7 @@ def create_demo_bodies():
         penis_size=16.0,
         testicle_size=TesticleSize.LARGE
     )
-    male.scrotums[0].add_testicle_fluid_production(0, FluidType.MILK, 0.05)
+    male.scrotums[0].add_testicle_fluid_production(0, FluidType.CUM, 0.05)
     bodies.append(EventfulBody(male))
     
     # Женщина
@@ -37,11 +38,16 @@ def create_demo_bodies():
     futa = BodyFactory.create_futanari(
         name="Rin",
         body_type=BodyType.AMAZON,
-        has_scrotum=False,
+        breast_cup="F",
         penis_size=20.0,
-        breast_cup="F"
+        has_scrotum=True,
+        internal_testicles=True
     )
     bodies.append(EventfulBody(futa))
+    
+    #create Roxy
+    roxy = RoxyMigurdia()
+    bodies.append(EventfulBody(roxy))
     
     return bodies
 

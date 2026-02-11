@@ -146,8 +146,8 @@ class RoxyMigurdia(FemaleBody):
         )
         
         self.breast_grid = BreastGrid(
-            rows=[[left_breast], [right_breast]],
-            labels=[["left_breast"], ["right_breast"]]
+            rows=[[left_breast, right_breast]],
+            labels=[["left","right"]]
         )
     
     def _apply_migurdian_physiology(self) -> None:
@@ -234,7 +234,8 @@ class RoxyMigurdia(FemaleBody):
 # Фабричная функция
 def create_roxy() -> RoxyMigurdia:
     """Создать Рокси Мигурдию с дефолтными параметрами."""
-    return RoxyMigurdia()
+    from body_sim.systems.events import EventfulBody
+    return EventfulBody(RoxyMigurdia())
 
 
 # Для интеграции с консолью

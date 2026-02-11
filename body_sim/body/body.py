@@ -21,7 +21,7 @@ from body_sim.systems.grid import BreastGrid
 @dataclass
 class Body:
     name: str = "Unnamed"
-    sex: Sex = Sex.FEMALE
+    sex: Sex = Sex.NONE
     body_type: BodyType = BodyType.AVERAGE
     stats: BodyStats = field(default_factory=BodyStats)
     
@@ -379,10 +379,11 @@ class FemaleBody(Body):
             nipple = Nipple(base_length=0.6, base_width=0.8, color=Color.LIGHT_PINK)
             areola = Areola(base_diameter=4.0, nipples=[nipple], color=Color.LIGHT_PINK)
             breast = Breast(cup=cup, areola=areola, base_elasticity=1.0)
-            breasts.append([breast])
-            labels.append([f"B{i}"])
-        
-        self.breast_grid = BreastGrid(rows=breasts, labels=labels)
+            breasts.append(breast)
+            labels.append(f"B{i}")
+        breasts_row = [breasts]
+        labels_row = [labels]
+        self.breast_grid = BreastGrid(rows=breasts_row, labels=[labels])
     
     def _setup_uterus(self):
         """Создать матку с трубами и яичниками."""
@@ -449,17 +450,18 @@ class FutanariBody(Body):
     def _setup_breasts(self) -> None:
         cup = CupSize[self.breast_cup.upper()]
         breasts = []
+        labels = []
         
         for i in range(self.breast_count):
-            nipple = Nipple(base_length=0.7, base_width=0.9, color=Color.PINK)
-            areola = Areola(base_diameter=5.0, nipples=[nipple], color=Color.PINK)
-            breast = Breast(cup=cup, areola=areola, base_elasticity=0.9)
-            breasts.append([breast])
+            nipple = Nipple(base_length=0.6, base_width=0.8, color=Color.LIGHT_PINK)
+            areola = Areola(base_diameter=4.0, nipples=[nipple], color=Color.LIGHT_PINK)
+            breast = Breast(cup=cup, areola=areola, base_elasticity=1.0)
+            breasts.append(breast)
+            labels.append(f"B{i}")
+        breasts_row = [breasts]
+        labels_row = [labels]
+        self.breast_grid = BreastGrid(rows=breasts_row, labels=[labels])
         
-        self.breast_grid = BreastGrid(
-            rows=breasts,
-            labels=[[f"B{i}"] for i in range(self.breast_count)]
-        )
     
     def _setup_uterus(self):
         """Создать матку с трубами и яичниками."""
