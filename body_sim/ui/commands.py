@@ -349,6 +349,40 @@ def cmd_help(args: List[str], ctx: CommandContext):
   • Genitals status
   • Uterus system (if present)
         """,
+        "sex": """
+[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
+[bold cyan]║              SEX & PENETRATION COMMANDS                      ║[/bold cyan]
+[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
+
+[bold yellow]🔞 БАЗОВЫЕ КОМАНДЫ[/bold yellow]
+
+  [green]penetrate <target> [organ] [penis] [force][/green]
+                            - Начать проникновение в цель
+                            Пример: penetrate roxy vagina penis 70
+                            Пример: penetrate 1 vagina (по индексу)
+  [green]stimulate_self [amount][/green]   - Вызвать эрекцию (masturbation)
+  [green]sex_status[/green]              - Показать статус текущего акта
+
+[bold yellow]🍆 УПРАВЛЕНИЕ ПРОНИКНОВЕНИЕМ[/bold yellow]
+
+  [green]thrust <amount> [force][/green]   - Толчок (положительное = вглубь)
+                            Пример: thrust 5 80 (глубже на 5см)
+                            Пример: thrust -3 40 (наружу на 3см)
+  [green]cum[/green]                     - Эякуляция внутрь целевого органа
+  [green]pullout[/green]                 - Извлечь член (проверяет узел/вакуум)
+
+[bold magenta]Особенности:[/bold magenta]
+• При полной эрекции пенис увеличивается в размерах
+• Узел (knot) блокирует выход после эякуляции до спада возбуждения
+• Вакуум от спермы может удерживать член внутри
+• Глубина отслеживается в реальном времени
+• Сперма добавляется как жидкость в целевой орган
+
+[bold red]⚠️ Требования:[/bold red]
+• У цели должен быть поддерживающий проникновение орган (vagina/anus)
+• У вас должен быть пенис с достаточной эрекцией
+• Используйте 'stimulate penis' или 'stimulate_self' перед penetrate
+""",
     }
 
     if topic in help_topics:
@@ -1569,5 +1603,15 @@ def create_registry() -> CommandRegistry:
         register_roxy_command(registry)
     except ImportError:
         pass  # Не критично
+
+    # ============ SEX / PENETRATION COMMANDS ============
+    try:
+        from body_sim.ui.sex_commands import register_sex_commands
+        sex_handler = register_sex_commands(registry)
+        console.print("[dim]Sex/penetration commands loaded[/dim]")
+    except ImportError as e:
+        console.print(f"[dim]Sex commands not available: {e}[/dim]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to load sex commands: {e}[/yellow]")
 
     return registry

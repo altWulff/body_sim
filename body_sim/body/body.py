@@ -16,7 +16,22 @@ from body_sim.anatomy.uterus import (
 from body_sim.anatomy.breast import Breast
 from body_sim.anatomy.nipple import Areola, Nipple
 from body_sim.systems.grid import BreastGrid
+from body_sim.systems.penetration import CrossBodyPenetration
 
+
+class Body:
+    def __init__(self, name: str, sex: Sex):
+        self.name = name
+        # ... существующая инициализация ...
+        
+        # Инициализация sexual encounter
+        self.active_sex: Optional[CrossBodyPenetration] = None
+    
+    def start_sex_with(self, target: 'Body', target_organ: str = "vagina", 
+                       source_organ: str = "penis") -> CrossBodyPenetration:
+        """Начать половой акт с другим телом"""
+        self.active_sex = CrossBodyPenetration(self, target, source_organ, target_organ)
+        return self.active_sex
 
 @dataclass
 class Body:
@@ -34,6 +49,8 @@ class Body:
     uterus_system: Optional[UterusSystem] = None
     
     _listeners: Dict[str, List] = field(default_factory=dict, repr=False)
+
+    active_sex: Optional[CrossBodyPenetration] = None
     
     def __post_init__(self):
         self._setup_genitals()
@@ -58,6 +75,11 @@ class Body:
     def _emit(self, event: str, **data) -> None:
         for cb in self._listeners.get(event, []):
             cb(self, **data)
+
+    def start_sex_with(self, target: 'Body', target_organ: str = "vagina", source_organ: str = "penis") -> CrossBodyPenetration:
+        """Начать половой акт с другим телом"""
+        self.active_sex = CrossBodyPenetration(self, target, source_organ, target_organ)
+        return self.active_sex
     
     @property
     def has_penis(self) -> bool:

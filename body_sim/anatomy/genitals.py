@@ -19,6 +19,7 @@ from body_sim.core.enums import (
     OvaryType,
     FluidType
 )
+from body_sim.systems.penetration import PenetrableOrgan, InsertableObject
 
 
 @dataclass
@@ -68,6 +69,7 @@ class Penis(Genital):
     is_split: bool = False
     split_depth: float = 0.0
     glows: bool = False
+    is_knotted: bool = False
  
     def __post_init__(self):
         """Применяем характеристики типа."""
@@ -111,6 +113,29 @@ class Penis(Genital):
         
         # Расширение головки (для equine/flared)
         self.flare_girth = self.current_girth * self.flare_factor
+
+    def get_insertable_object(self) -> InsertableObject:
+        """Преобразовать в InsertableObject для пенетрации"""
+        return InsertableObject(
+            name=self.name or "penis",
+            length=self.current_length,
+            diameter=self.current_diameter,
+            rigidity=0.9 if self.is_erect else 0.4,
+            texture="skin",
+            inserted_depth=0.0
+        )
+    
+    def produce_cum_for_encounter(self, arousal_boost: float = 1.0) -> float:
+        """Производство спермы во время акта"""
+        if hasattr(self, 'testicles') and self.testicles:
+            # Производство через яички
+            if hasattr(self.testicles, 'produce'):
+                produced = self.testicles.produce(1.0 * arousal_boost)
+                return sum(produced.values()) if isinstance(produced, dict) else produced
+        # Или прямое добавление
+        amount = 0.5 * arousal_boost
+        self.current_cum_volume = min(getattr(self, 'cum_reservoir', 50), self.current_cum_volume + amount)
+        return amount 
 
     
     @property
@@ -324,6 +349,16 @@ class Vagina(Genital):
         """Применяем характеристики типа."""
         self._apply_type_stats()
         self._recalculate_dimensions()
+
+    def __post_init__(self):
+        Genital.__init__(self)
+        PenetrableOrgan.__init__(self)
+        self._apply_type_stats()
+        self._recalculate_dimensions()
+        # Синхронизация параметров PenetrableOrgan с Vagina
+        self.canal_length = self.base_depth
+        self.rest_diameter = self.base_width
+        self.max_stretch_ratio = getattr(self.vagina_type, 'max_stretch_ratio', 3.0)
     
     def _apply_type_stats(self):
         """Применить характеристики типа влагалища."""
@@ -399,6 +434,16 @@ class Vagina(Genital):
         if not self.current_penetration:
             self.current_stretch = max(1.0, self.current_stretch * 0.95)
         self.lubrication = max(0.0, self.lubrication - 0.1 * dt)
+
+    def get_insertable_object(self) -> InsertableObject:
+        """Для совместимости если vagina используется как active"""
+        return InsertableObject(
+            name="vagina",
+            length=self.current_depth,
+            diameter=self.current_width,
+            rigidity=0.3,
+            texture="mucosa"
+        )
 
     def update_arousal(self, amount: float):
         """Обновить возбуждение."""
