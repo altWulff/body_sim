@@ -1515,6 +1515,172 @@ def cmd_reactions_clear_all(args: List[str], ctx: CommandContext):
     else:
         console.print("[yellow]No reaction systems to clear[/yellow]")
 
+def cmd_vagina(args: List[str], ctx: CommandContext):
+    """Управление вагиной - fullness, fluid, penetration."""
+    if not ctx.active_body:
+        console.print("[red]No body selected[/red]")
+        return
+    
+    if not hasattr(ctx.active_body, 'vaginas') or not ctx.active_body.vaginas:
+        console.print("[red]No vagina available[/red]")
+        return
+    
+    # По умолчанию индекс 0
+    vagina_idx = 0
+    action = "status"
+    action_args = []
+    
+    # Парсинг аргументов
+    if args:
+        # Проверяем, является ли первый аргумент индексом
+        try:
+            potential_idx = int(args[0])
+            if 0 <= potential_idx < len(ctx.active_body.vaginas):
+                vagina_idx = potential_idx
+                action_args = args[1:]
+            else:
+                action_args = args
+        except ValueError:
+            # Это action, не индекс
+            action_args = args
+    
+    # Определяем action из оставшихся аргументов
+    if action_args:
+        action = action_args[0].lower()
+        action_args = action_args[1:]
+    
+    vagina = ctx.active_body.vaginas[vagina_idx]
+    
+    # Проверяем наличие fluid_system
+    if not hasattr(vagina, 'fluid_system'):
+        console.print(f"[red]Vagina #{vagina_idx} doesn't have fluid system[/red]")
+        return
+    
+    fs = vagina.fluid_system
+    
+    # === FULLNESS (основная команда) ===
+    if action in ("fullness", "full", "f"):
+        from body_sim.ui.vagina_render import VaginaRenderer
+        renderer = VaginaRenderer()
+        console.print(renderer.render_fullness(vagina, f"Vagina #{vagina_idx} Fullness"))
+    
+    # === STATUS (компактный) ===
+    elif action in ("status", "s"):
+        from body_sim.ui.vagina_render import VaginaRenderer
+        renderer = VaginaRenderer()
+        console.print(renderer.render_compact(vagina, f"Vagina[{vagina_idx}]"))
+    
+    # === ADD FLUID (как у uterus) ===
+    elif action in ("add_fluid", "add", "fill"):
+        if len(action_args) < 2:
+            console.print("[red]Usage: vagina <idx> add_fluid <type> <amount>[/red]")
+            console.print("Types: milk, cum, water, honey, oil, blood")
+            return
+        
+        from body_sim.core.enums import FluidType
+        try:
+            fluid_type = FluidType[action_args[0].upper()]
+        except KeyError:
+            console.print(f"[red]Unknown fluid type: {action_args[0]}[/red]")
+            return
+        
+        try:
+            amount = float(action_args[1])
+        except ValueError:
+            console.print("[red]Amount must be a number[/red]")
+            return
+        
+        added = vagina.add_fluid(amount, action_args[0])
+        
+        if added > 0:
+            console.print(f"[cyan]Added {added:.1f}ml of {action_args[0].upper()}[/cyan]")
+            console.print(f"[dim]Total: {fs.filled:.1f}ml / {fs.max_volume:.1f}ml ({fs.fill_percentage:.1f}%)[/dim]")
+            
+            if added < amount:
+                console.print(f"[yellow]⚠ {amount - added:.1f}ml overflowed![/yellow]")
+        else:
+            console.print("[red]Cannot add - container full![/red]")
+    
+    # === DRAIN (полная очистка) ===
+    elif action in ("drain", "empty", "clear"):
+        removed = vagina.drain_all()
+        total = sum(removed.values())
+        
+        if total > 0:
+            console.print(f"[yellow]Drained {total:.1f}ml:[/yellow]")
+            for fluid, amt in removed.items():
+                console.print(f"  [dim]- {fluid}: {amt:.1f}ml[/dim]")
+        else:
+            console.print("[dim]Already empty[/dim]")
+    
+    # === REMOVE (частичное удаление) ===
+    elif action in ("remove", "rm"):
+        amount = float(action_args[0]) if action_args else 10.0
+        removed = vagina.remove_fluid(amount)
+        console.print(f"[yellow]Removed {removed:.1f}ml[/yellow]")
+        console.print(f"[dim]Remaining: {fs.filled:.1f}ml[/dim]")
+    
+    # === INFLATE (растяжение) ===# В commands.py cmd_vagina
+    elif action == "inflate":
+        if not action_args:
+            console.print("[red]Usage: vagina <idx> inflate <ratio>[/red]")
+            return
+        
+        ratio = float(action_args[0])
+        old_length = vagina.canal_length
+        old_diam = vagina.rest_diameter
+        
+        success = vagina.inflate(ratio)  # Теперь это метод класса
+        
+        if success:
+            console.print(f"[magenta]Inflated to {ratio:.1f}x volume[/magenta]")
+            console.print(f"[dim]Dimensions: {old_length:.1f}cm→{vagina.canal_length:.1f}cm, "
+                         f"{old_diam:.1f}cm→{vagina.rest_diameter:.1f}cm[/dim]")
+        else:
+            console.print("[red]Cannot inflate further - risk of rupture![/red]")
+
+    
+    
+    # === DEFLATE ===
+    elif action == "deflate":
+        old_ratio = fs.inflation_ratio
+        fs.deflate(0.5)  # Быстрое восстановление
+        console.print(f"[green]Deflated: {old_ratio:.2f}x → {fs.inflation_ratio:.2f}x[/green]")
+    
+    # === PENETRATION STATUS ===
+    elif action in ("pen", "penetration", "inserted"):
+        if vagina.is_penetrated:
+            console.print(f"[bold]Inserted objects ({len(vagina.inserted_objects)}):[/bold]")
+            for i, data in enumerate(vagina.inserted_objects):
+                obj = data.object
+                console.print(f"  {i}: {obj.name} at {obj.inserted_depth:.1f}cm")
+        else:
+            console.print("[dim]Not penetrated[/dim]")
+    
+    # === LIST всех вагин ===
+    elif action == "list":
+        console.print(f"[bold]Vaginas for {ctx.active_body.name}:[/bold]")
+        for i, v in enumerate(ctx.active_body.vaginas):
+            fs = v.fluid_system if hasattr(v, 'fluid_system') else None
+            if fs:
+                status = "🔴" if fs.is_leaking else f"{fs.fill_percentage:.0f}%"
+                pen = "⬇" if v.is_penetrated else "○"
+                console.print(f"  [{i}] {pen} {fs.filled:.0f}ml / {fs.max_volume:.0f}ml ({status})")
+    
+    # === HELP / DEFAULT ===
+    else:
+        console.print(f"[yellow]Unknown action: {action}[/yellow]")
+        console.print("[dim]Available actions:[/dim]")
+        console.print("  [cyan]fullness [idx][/cyan]     - Detailed fullness display")
+        console.print("  [cyan]status [idx][/cyan]       - Compact status")
+        console.print("  [cyan]add_fluid <type> <amount> [idx][/cyan]")
+        console.print("  [cyan]drain [idx][/cyan]        - Empty completely")
+        console.print("  [cyan]remove <amount> [idx][/cyan]")
+        console.print("  [cyan]inflate <ratio> [idx][/cyan]")
+        console.print("  [cyan]deflate [idx][/cyan]")
+        console.print("  [cyan]penetration [idx][/cyan]  - Show inserted objects")
+        console.print("  [cyan]list[/cyan]               - List all vaginas")
+        
 
 # ============ Создание реестра команд ============
 
@@ -1576,8 +1742,14 @@ def create_registry() -> CommandRegistry:
         cmd_reactions_clear_all,
         "reactions"
     ))
-
-
+    
+    registry.register(Command(
+        "vagina", ["vag", "v"],
+        "Vagina fullness and fluid management",
+        "vagina [idx] [fullness|add_fluid|drain|...]",
+        cmd_vagina,
+        "genitals"
+    ))
     # Реакции (если доступны)
     try:
         from body_sim.characters.breast_reactions import get_reaction_system, register_reaction_commands

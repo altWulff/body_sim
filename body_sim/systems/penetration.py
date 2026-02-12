@@ -7,11 +7,9 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 
-class InsertionStatus(Enum):
-    OUTSIDE = auto()
-    INSERTING = auto()
-    FULLY_INSERTED = auto()
-    STUCK = auto()
+from body_sim.systems.fluid_container import FluidContainer
+from body_sim.core.enums import FluidType, InsertionStatus
+
 
 @dataclass
 class InsertableObject:
@@ -231,18 +229,6 @@ class PenetrableOrgan:
             )
         return table
 
-
-class PenetrableWithFluid(PenetrableOrgan):
-    def __init__(self):
-        super().__init__()
-        self.fluid_volume = 0.0
-        self.max_volume = 100.0
-        self.pressure = 0.0
-        
-    def add_pressure(self, amount: float):
-        self.pressure += amount
-
-
 # ==================== CROSS-BODY PENETRATION ====================
 
 @dataclass
@@ -447,39 +433,34 @@ class CrossBodyPenetration:
                     self.penis.is_inserted = False
                 
         return success, msg
-    
+
     def ejaculate(self) -> EjaculationResult:
-        """Эякуляция"""
         if not self.active:
             return EjaculationResult(False, message="Нет проникновения")
         
-        # Проверка спермы
         cum_volume = getattr(self.penis, 'current_cum_volume', 0)
         if cum_volume <= 0:
             return EjaculationResult(False, message="Нет спермы")
         
-        # Проверка глубины
         current_depth = self.insertable_penis.inserted_depth
-        if current_depth < self.target_organ.canal_length * 0.3:
-            return EjaculationResult(False, message="Слишком мелко")
         
-        # Расчет объема
-        volume = cum_volume
+        # Расходуем сперму
         if hasattr(self.penis, 'ejaculate'):
-            volume = self.penis.ejaculate(volume)
+            volume = self.penis.ejaculate(cum_volume)
         else:
-            self.penis.current_cum_volume -= volume
+            volume = cum_volume
+            self.penis.current_cum_volume = 0
         
-        # Добавление жидкости
-        semen = SemenProperties(
-            volume=volume,
-            source_name=getattr(self.source, 'name', 'unknown')
-        )
-        
+        # Добавляем через единый интерфейс (использует FluidMixture внутри)
         if hasattr(self.target_organ, 'add_fluid'):
-            self.target_organ.add_fluid(volume, "semen", semen.to_fluid_dict())
-        elif hasattr(self.target_organ, 'fluid_volume'):
-            self.target_organ.fluid_volume += volume
+            added = self.target_organ.add_fluid(volume, "cum", {
+                "source": getattr(self.source, 'name', 'unknown'),
+                "depth": current_depth
+            })
+            
+            if added < volume:
+                overflow = volume - added
+                console.print(f"[yellow]⚠ {overflow:.1f}ml спермы вытекает наружу![/yellow]")
         
         # Спад эрекции
         if hasattr(self.penis, 'arousal'):
@@ -488,8 +469,8 @@ class CrossBodyPenetration:
             self.penis.is_erect = False
         
         fill_pct = 0
-        if hasattr(self.target_organ, 'max_volume') and self.target_organ.max_volume > 0:
-            fill_pct = (volume / self.target_organ.max_volume) * 100
+        if hasattr(self.target_organ, 'fluid_system'):
+            fill_pct = self.target_organ.fluid_system.fill_percentage
         
         return EjaculationResult(
             success=True,
@@ -497,9 +478,10 @@ class CrossBodyPenetration:
             target_organ=self.target_ref.full_name,
             depth=current_depth,
             is_knotted=getattr(self.penis, 'is_knotted', False),
-            remaining_volume=getattr(self.penis, 'current_cum_volume', 0)
+            remaining_volume=getattr(self.penis, 'current_cum_volume', 0),
+            message=f"Эякуляция {volume:.1f}ml ({fill_pct:.1f}% заполнения)"
         )
-    
+
     def pullout(self) -> Tuple[bool, str]:
         """Извлечение"""
         if not self.active:
@@ -549,3 +531,75 @@ class CrossBodyPenetration:
             "knotted": getattr(self.penis, 'is_knotted', False),
             "cum_ready": getattr(self.penis, 'current_cum_volume', 0)
         }
+class PenetrableWithFluid(PenetrableOrgan):
+    def __init__(self):
+        super().__init__()
+        self.fluid_system = FluidContainer(base_volume=120.0, max_stretch_ratio=5.0)
+        # Сохраняем базовые размеры для пересчета при инфляции
+        self._base_canal_length = self.canal_length
+        self._base_rest_diameter = self.rest_diameter
+        
+    def inflate(self, ratio: float) -> bool:
+        """Инфляция с обновлением физических размеров"""
+        success = self.fluid_system.inflate(ratio)
+        if success:
+            self._apply_inflation_to_dimensions()
+        return success
+    
+    def _apply_inflation_to_dimensions(self):
+        """Применить масштабирование размеров на основе инфляции"""
+        # inflation_ratio - множитель объема
+        # для сохранения пропорций: V2/V1 = (L2/L1)^3
+        # значит L2/L1 = (V2/V1)^(1/3)
+        volume_ratio = self.fluid_system.inflation_ratio
+        linear_scale = volume_ratio ** (1/3)
+        
+        self.canal_length = self._base_canal_length * linear_scale
+        self.rest_diameter = self._base_rest_diameter * linear_scale
+        
+    def deflate(self, recovery_rate: float = 0.1):
+        """Уменьшение инфляции с восстановлением размеров"""
+        old_ratio = self.fluid_system.inflation_ratio
+        self.fluid_system.deflate(recovery_rate)
+        # Если ratio изменился, обновляем размеры
+        if self.fluid_system.inflation_ratio != old_ratio:
+            self._apply_inflation_to_dimensions()
+        
+    def tick(self, dt: float = 1.0):
+        super().tick(dt)
+        old_ratio = self.fluid_system.inflation_ratio
+        self.fluid_system.tick(dt)
+        # Автоматическое восстановление размеров при спаде инфляции
+        if self.fluid_system.inflation_ratio != old_ratio:
+            self._apply_inflation_to_dimensions()
+        
+    # Свойства для совместимости
+    @property
+    def fluid_volume(self) -> float:
+        return self.fluid_system.filled
+        
+    @property
+    def max_volume(self) -> float:
+        return self.fluid_system.max_volume
+        
+    @property
+    def pressure(self) -> float:
+        return self.fluid_system.pressure
+        
+    # Единый интерфейс как у uterus
+    def add_fluid(self, volume: float, fluid_type: str = "water", properties: dict = None) -> float:
+        try:
+            ft = FluidType[fluid_type.upper()]
+        except KeyError:
+            ft = FluidType.WATER
+        return self.fluid_system.add_fluid(ft, volume)
+        
+    def drain_all(self) -> Dict[str, float]:
+        removed = self.fluid_system.drain_all()
+        return {k.name: v for k, v in removed.items()}
+        
+    def remove_fluid(self, amount: float) -> float:
+        return self.fluid_system.remove_fluid(amount)
+
+
+        

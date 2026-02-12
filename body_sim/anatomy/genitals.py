@@ -19,7 +19,7 @@ from body_sim.core.enums import (
     OvaryType,
     FluidType
 )
-from body_sim.systems.penetration import PenetrableOrgan, InsertableObject
+from body_sim.systems.penetration import PenetrableOrgan, InsertableObject, PenetrableWithFluid
 
 
 @dataclass
@@ -319,7 +319,7 @@ class Clitoris(Genital):
 
 
 @dataclass
-class Vagina(Genital, PenetrableOrgan):
+class Vagina(Genital, PenetrableWithFluid):
     vagina_type: VaginaType = field(default=VaginaType.HUMAN)
     state: VaginaState = field(default=VaginaState.NORMAL)
     base_depth: float = 10.0
@@ -348,7 +348,7 @@ class Vagina(Genital, PenetrableOrgan):
     def __post_init__(self):
         """Применяем характеристики типа."""
         Genital.__init__(self)
-        PenetrableOrgan.__init__(self)
+        PenetrableWithFluid.__init__(self)
         self._apply_type_stats()
         self._recalculate_dimensions()
         # Синхронизация параметров PenetrableOrgan с Vagina

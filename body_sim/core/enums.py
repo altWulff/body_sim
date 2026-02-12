@@ -463,3 +463,9 @@ class BreastEventType(Enum):
     NIPPLE_STRETCH = auto()         # Растяжение соска
     NIPPLE_GAPING = auto()          # Раскрытие соска
     INFLATION_MAX = auto()          # Максимальное растяжение
+    
+class InsertionStatus(Enum):
+    OUTSIDE = auto()
+    INSERTING = auto()
+    FULLY_INSERTED = auto()
+    STUCK = auto()
