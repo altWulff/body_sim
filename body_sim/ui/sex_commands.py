@@ -9,7 +9,7 @@ try:
 except ImportError:
     console = Console()
 
-from body_sim.systems.penetration import CrossBodyPenetration, EjaculationResult, IndexedOrganRef
+from body_sim.systems.penetration import CrossBodyPenetration, EjaculationResult, IndexedOrganRef, InsertableObject
 
 
 class SexCommandHandler:
@@ -377,6 +377,180 @@ class SexCommandHandler:
         
         if penis.is_erect:
             console.print(f"[green]Полная эрекция! Диаметр: {penis.current_diameter:.1f}см[/green]")
+
+    def cmd_insert_toy(self, args: List[str], ctx):
+        """Вставить игрушку/дилдо: insert_toy <target> <organ_idx> [type/size] [length] [diameter]"""
+        source = self._get_player_body(ctx)
+        if not source:
+            console.print("[red]Нет активного тела[/red]")
+            return
+        
+        if len(args) < 2:
+            console.print("[red]Usage: insert_toy <target_name|index> <organ_idx> [type|length] [diameter] [force][/red]")
+            console.print("[dim]Примеры:[/dim]")
+            console.print("  insert_toy roxy 0           - вставить стандартное дилдо в vagina[0]")
+            console.print("  insert_toy roxy 0 horse     - предустановленный тип 'horse'")
+            console.print("  insert_toy roxy 0 20 4      - длина 20см, диаметр 4см")
+            return
+        
+        # Парсинг цели (как в penetrate)
+        target = self._get_target_body(ctx, args[0])
+        if not target:
+            console.print(f"[red]Цель '{args[0]}' не найдена[/red]")
+            return
+        
+        organ_idx = int(args[1])
+        
+        # Получаем вагину
+        if not hasattr(target, 'vaginas') or organ_idx >= len(target.vaginas):
+            console.print(f"[red]Нет vaginas[{organ_idx}][/red]")
+            return
+        
+        vagina = target.vaginas[organ_idx]
+        
+        # Параметры дилдо
+        length = 15.0
+        diameter = 3.0
+        rigidity = 0.9
+        toy_type = "dildo"
+        force = 50.0
+        
+        # Предустановленные типы
+        presets = {
+            "small": (10, 2.5, 0.8),
+            "medium": (15, 3.5, 0.9),
+            "large": (20, 4.5, 0.95),
+            "huge": (25, 6.0, 1.0),
+            "horse": (25, 5.0, 0.9),
+            "canine": (18, 4.0, 0.85),  # с узлом можно добавить логику
+            "slim": (20, 2.0, 0.7),
+            "inflatable": (15, 3.0, 0.5)  # можно накачивать
+        }
+        
+        arg_idx = 2
+        if arg_idx < len(args):
+            preset = args[arg_idx].lower()
+            if preset in presets:
+                length, diameter, rigidity = presets[preset]
+                toy_type = preset
+                arg_idx += 1
+            else:
+                # Парсим как числа
+                try:
+                    length = float(args[arg_idx])
+                    if arg_idx + 1 < len(args):
+                        diameter = float(args[arg_idx + 1])
+                        arg_idx += 2
+                    else:
+                        arg_idx += 1
+                except ValueError:
+                    console.print(f"[red]Неизвестный тип '{preset}'. Доступные: {', '.join(presets.keys())}[/red]")
+                    return
+        
+        # Сила вставки
+        if arg_idx < len(args):
+            force = float(args[arg_idx])
+        
+        # Создаем InsertableObject
+        toy = InsertableObject(
+            name=f"{toy_type}_dildo",
+            length=length,
+            diameter=diameter,
+            rigidity=rigidity,
+            texture="silicone"
+        )
+        
+        # Проверка размера vs растяжение вагины
+        max_diameter = vagina.rest_diameter * vagina.max_stretch_ratio
+        if diameter > max_diameter:
+            console.print(f"[red]Слишком большое! Макс диаметр для этой вагины: {max_diameter:.1f}см[/red]")
+            console.print(f"[dim]Текущий диаметр вагины: {vagina.rest_diameter:.1f}см, "
+                         f"растяжимость: {vagina.max_stretch_ratio:.1f}x[/dim]")
+            return
+        
+        # Попытка вставки
+        success, msg = vagina.insert_object(toy, force)
+        
+        if success:
+            console.print(f"[green]✓ {msg}[/green]")
+            console.print(f"[cyan]Вставлено {toy_type}: {length}см × {diameter}см[/cyan]")
+            
+            # Обновляем растяжение вагины если нужно
+            if diameter > vagina.rest_diameter:
+                vagina.current_dilation = max(vagina.current_dilation, diameter)
+                stretch_ratio = diameter / vagina.rest_diameter
+                console.print(f"[yellow]Вагина растянута до {stretch_ratio:.1f}x[/yellow]")
+        else:
+            console.print(f"[red]Не удалось: {msg}[/red]")
+
+    def cmd_advance_toy(self, args: List[str], ctx):
+        """Продвинуть/вытащить игрушку: advance_toy <target> <organ_idx> <amount> [force]"""
+        if len(args) < 3:
+            console.print("[red]Usage: advance_toy <target> <organ_idx> <amount> [force][/red]")
+            console.print("[dim]amount > 0 - вглубь, amount < 0 - наружу[/dim]")
+            return
+        
+        target = self._get_target_body(ctx, args[0])
+        if not target:
+            return
+        
+        organ_idx = int(args[1])
+        amount = float(args[2])
+        force = float(args[3]) if len(args) > 3 else 60.0
+        
+        if not hasattr(target, 'vaginas') or organ_idx >= len(target.vaginas):
+            return
+        
+        vagina = target.vaginas[organ_idx]
+        
+        if not vagina.is_penetrated:
+            console.print("[red]Вагина пуста[/red]")
+            return
+        
+        # Находим последний вставленный объект (или по имени)
+        last_obj = vagina.inserted_objects[-1].object if vagina.inserted_objects else None
+        if not last_obj:
+            return
+        
+        if amount > 0:
+            success, msg = vagina.advance_object(last_obj.name, amount, force)
+        else:
+            success, msg = vagina.withdraw_object(last_obj.name, abs(amount), speed=abs(amount))
+            if success and last_obj.inserted_depth <= 0:
+                console.print(f"[green]Дилдо полностью извлечено[/green]")
+                return
+        
+        color = "green" if success else "yellow"
+        console.print(f"[{color}]{msg}[/{color}]")
+        if success:
+            pct = (last_obj.inserted_depth / vagina.canal_length) * 100
+            console.print(f"[dim]Глубина: {last_obj.inserted_depth:.1f}см ({pct:.0f}%)[/dim]")
+    
+    
+    def cmd_remove_toy(self, args: List[str], ctx):
+        """Быстрое извлечение игрушки"""
+        if len(args) < 2:
+            console.print("[red]Usage: remove_toy <target> <organ_idx>[/red]")
+            return
+        
+        target = self._get_target_body(ctx, args[0])
+        organ_idx = int(args[1])
+        
+        if not hasattr(target, 'vaginas') or organ_idx >= len(target.vaginas):
+            return
+        
+        vagina = target.vaginas[organ_idx]
+        
+        # Извлекаем все объекты
+        removed = []
+        for data in list(vagina.inserted_objects):
+            vagina.withdraw_object(data.object.name, 999, speed=10)  # 999 чтобы точно вытащить
+            removed.append(data.object.name)
+        
+        if removed:
+            console.print(f"[green]Извлечено: {', '.join(removed)}[/green]")
+        else:
+            console.print("[dim]Нечего извлекать[/dim]")
     
     def _show_penetration_ui(self, encounter):
         status = encounter.get_status()
@@ -439,6 +613,15 @@ def cmd_sex_status(args, ctx):
 def cmd_stimulate_self(args, ctx):
     _sex_handler.cmd_stimulate_self(args, ctx)
 
+def cmd_insert_toy(args, ctx):
+    _sex_handler.cmd_insert_toy(args, ctx)
+
+def cmd_advance_toy(args, ctx):
+    _sex_handler.cmd_advance_toy(args, ctx)
+
+def cmd_remove_toy(args, ctx):
+    _sex_handler.cmd_remove_toy(args, ctx)
+
 def register_sex_commands(registry):
     from body_sim.ui.commands import Command
     
@@ -448,5 +631,26 @@ def register_sex_commands(registry):
     registry.register(Command("pullout", ["withdraw"], "Извлечь", "pullout", cmd_pullout, "sex"))
     registry.register(Command("sex_status", ["sexstat"], "Статус", "sex_status", cmd_sex_status, "sex"))
     registry.register(Command("stimulate_self", ["masturbate"], "Стимуляция", "stimulate_self [penis_idx] [amount]", cmd_stimulate_self, "sex"))
+    registry.register(Command(
+        "insert_toy", ["toy", "dildo"], 
+        "Вставить игрушку/дилдо", 
+        "insert_toy <target> <idx> [type|length] [diam] [force]",
+        cmd_insert_toy,
+        "sex"
+    ))
+    registry.register(Command(
+        "advance_toy", ["move_toy", "push"], 
+        "Продвинуть/вытащить игрушку", 
+        "advance_toy <target> <idx> <amount>",
+        cmd_advance_toy,
+        "sex"
+    ))
+    registry.register(Command(
+        "remove_toy", ["pullout_toy"], 
+        "Извлечь игрушку", 
+        "remove_toy <target> <idx>",
+        cmd_remove_toy,
+        "sex"
+    ))
     
     return _sex_handler
