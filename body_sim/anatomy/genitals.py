@@ -381,6 +381,42 @@ class Vagina(Genital, PenetrableWithFluid):
         # Объём приблизительно
         r = self.current_width / 2
         self.volume = math.pi * r * r * self.current_depth
+        
+    def get_landmarks(self):
+        """Возвращает анатомические отметки для глубокого проникновения."""
+        from body_sim.systems.advanced_penetration import DepthLandmark, PenetrationDepthZone
+        
+        landmarks = [
+            DepthLandmark(
+                zone=PenetrationDepthZone.VAGINA_INTROITUS,
+                depth_cm=0.0,
+                min_diameter=1.0,
+                max_diameter=6.0,
+                resistance_factor=0.5,
+                description="Вход во влагалище"
+            ),
+            DepthLandmark(
+                zone=PenetrationDepthZone.VAGINA_CANAL,
+                depth_cm=self.canal_length * 0.5,
+                min_diameter=2.0,
+                max_diameter=self.rest_diameter * self.max_stretch_ratio,
+                resistance_factor=0.3,
+                description="Влагалищный канал"
+            ),
+            DepthLandmark(
+                zone=PenetrationDepthZone.VAGINA_FORNIX,
+                depth_cm=self.canal_length * 0.95,
+                min_diameter=2.5,
+                max_diameter=8.0,
+                resistance_factor=0.4,
+                description="Своды (глубоко)",
+                stimulation_bonus=0.8
+            ),
+        ]
+        
+        # Если есть матка - добавляем путь к ней
+        # Это будет дополнено AdvancedPenetrationEncounter
+        return landmarks
 
     @property
     def current_depth(self) -> float:

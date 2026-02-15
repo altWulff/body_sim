@@ -1785,5 +1785,14 @@ def create_registry() -> CommandRegistry:
         console.print(f"[dim]Sex commands not available: {e}[/dim]")
     except Exception as e:
         console.print(f"[yellow]Warning: Failed to load sex commands: {e}[/yellow]")
+    # ============ DEEP PENETRATION COMMANDS ============
+    try:
+        from body_sim.ui.deep_sex_commands import register_deep_sex_commands
+        deep_handler = register_deep_sex_commands(registry)
+        console.print("[dim]Deep penetration commands loaded[/dim]")
+    except ImportError as e:
+        console.print(f"[dim]Deep penetration commands not available: {e}[/dim]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to load deep penetration commands: {e}[/yellow]")
 
     return registry

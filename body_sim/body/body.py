@@ -22,8 +22,8 @@ from body_sim.systems.penetration import CrossBodyPenetration
 class Body:
     def __init__(self, name: str, sex: Sex):
         self.name = name
-        # ... существующая инициализация ...
-        
+        from body_sim.systems.advanced_penetration import create_urethra_for_body
+        self.urethra = create_urethra_for_body(self)
         # Инициализация sexual encounter
         self.active_sex: Optional[CrossBodyPenetration] = None
     

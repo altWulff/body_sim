@@ -320,6 +320,26 @@ class CrossBodyPenetration:
                     )
             
             raise ValueError(f"У {target_body.name} нет {target_ref.full_name}")
+
+    def start_deep(self) -> 'AdvancedPenetrationEncounter':
+        """Перевести в режим глубокого проникновения."""
+        from body_sim.systems.advanced_penetration import AdvancedPenetrationEncounter
+        
+        # Создаём глубокую сессию на базе текущей
+        deep = AdvancedPenetrationEncounter(
+            source_body=self.source,
+            target_body=self.target,
+            penetrating_object=self.penis,
+            entry_organ=self.target_ref.organ_type,
+            entry_organ_idx=self.target_ref.index
+        )
+        
+        # Переносим текущую глубину если есть
+        if self.insertable_penis:
+            deep.state.current_depth = self.insertable_penis.inserted_depth
+        
+        deep.is_active = True
+        return Deep
     
     def _get_organ_from_body(self, body: Any, ref: IndexedOrganRef) -> Optional[Any]:
         """Получить орган из тела по ссылке с индексом"""
@@ -531,6 +551,8 @@ class CrossBodyPenetration:
             "knotted": getattr(self.penis, 'is_knotted', False),
             "cum_ready": getattr(self.penis, 'current_cum_volume', 0)
         }
+
+
 class PenetrableWithFluid(PenetrableOrgan):
     def __init__(self):
         super().__init__()
@@ -600,6 +622,3 @@ class PenetrableWithFluid(PenetrableOrgan):
         
     def remove_fluid(self, amount: float) -> float:
         return self.fluid_system.remove_fluid(amount)
-
-
-        
