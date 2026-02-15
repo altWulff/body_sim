@@ -330,53 +330,133 @@ class SexCommandHandler:
             console.print("[dim]Нет активного акта. Используйте 'penetrate <target>'[/dim]")
     
     def cmd_stimulate_self(self, args: List[str], ctx):
-        """Стимуляция: stimulate_self [penis_idx] [amount]"""
+        """Стимуляция органа: stimulate_self [organ_type] [index] [amount]"""
         source = self._get_player_body(ctx)
         if not source:
             return
         
-        # Определяем индекс пениса и силу стимуляции
-        penis_idx = 0
-        amount = 0.2
-        
-        if args:
-            try:
-                # Пробуем первый аргумент как индекс
-                if len(args) == 1:
-                    if '.' in args[0]:
-                        amount = float(args[0])
-                    else:
-                        penis_idx = int(args[0])
-                else:
-                    penis_idx = int(args[0])
-                    amount = float(args[1])
-            except ValueError:
-                amount = float(args[0]) if args else 0.2
-        
-        if not self._has_penis(source, penis_idx):
-            console.print(f"[red]Нет пениса с индексом {penis_idx}[/red]")
+        if not args:
+            console.print("[red]Usage: stimulate_self [organ_type] [index] [amount][/red]")
+            console.print("[dim]Органы: penis, vagina, clit, anus, breast[/dim]")
             return
         
-        penis = self._get_penis(source, "penis", penis_idx)
-        if not penis:
-            console.print("[red]Не удалось получить пенис[/red]")
+        organ_type = args[0].lower()
+        index = 0
+        amount = 0.2
+        
+        # Парсинг аргументов
+        if organ_type.isdigit():
+            # Старая сигнатура: stimulate_self 0 0.5 (только для пениса)
+            organ_type = "penis"
+            index = int(args[0])
+            if len(args) > 1:
+                amount = float(args[1])
+        else:
+            if len(args) > 1:
+                try:
+                    index = int(args[1])
+                except ValueError:
+                    pass
+            if len(args) > 2:
+                try:
+                    amount = float(args[2])
+                except ValueError:
+                    pass
+        
+        # === СПЕЦИАЛЬНАЯ ОБРАБОТКА ГРУДИ ===
+        if organ_type in ["breast", "breasts", "tit", "tits", "boob", "boobs"]:
+            if not hasattr(source, 'breast_grid') or source.breast_grid is None:
+                console.print(f"[red]У персонажа нет груди[/red]")
+                return
+            
+            # Получаем все груди из сетки
+            all_breasts = source.breast_grid.all()
+            if not all_breasts:
+                console.print(f"[red]Грудная сетка пуста[/red]")
+                return
+            
+            if index >= len(all_breasts):
+                console.print(f"[red]Нет груди [{index}]. Доступно: {len(all_breasts)}[/red]")
+                return
+            
+            breast = all_breasts[index]
+            
+            if not hasattr(breast, 'stimulate'):
+                console.print(f"[red]Эта грудь не поддерживает стимуляцию[/red]")
+                return
+            
+            # Стимуляция
+            breast.stimulate(amount)
+            
+            console.print(f"\n[magenta]Стимуляция breasts[{index}] (+{amount:.1f})[/magenta]")
+            console.print(f"  Возбуждение: [cyan]{breast.arousal:.0%}[/cyan]")
+            console.print(f"  Удовольствие: [green]{breast.pleasure:.1f}[/green]")
+            
+            # Специфично для груди
+            if hasattr(breast, 'lactation') and breast.lactation.state.value >= 2:
+                console.print(f"  [blue]↳ Молочные железы активированы[/blue]")
+            if hasattr(breast, 'areola') and breast.areola.nipples:
+                erect_count = sum(1 for n in breast.areola.nipples if getattr(n, 'is_erect', False))
+                if erect_count > 0:
+                    console.print(f"  [yellow]↳ Соски эрегированы ({erect_count}/{len(breast.areola.nipples)})[/yellow]")
+            return
+        
+        # === ОСТАЛЬНЫЕ ОРГАНЫ (как было) ===
+        organ_map = {
+            "vagina": "vaginas", "vaginas": "vaginas", "pussy": "vaginas", 
+            "clit": "clitorises", "clitoris": "clitorises",
+            "penis": "penises", "penises": "penises", "cock": "penises", "dick": "penises",
+            "anus": "anuses", "anuses": "anuses", "ass": "anuses", "butt": "anuses"
+        }
+        
+        attr_name = organ_map.get(organ_type)
+        if not attr_name:
+            console.print(f"[red]Неизвестный орган: {organ_type}[/red]")
+            return
+        
+        if not hasattr(source, attr_name):
+            console.print(f"[red]У персонажа нет {attr_name}[/red]")
+            return
+        
+        organs = getattr(source, attr_name)
+        if not isinstance(organs, list) or not organs:
+            console.print(f"[red]{attr_name} пуст или не является списком[/red]")
+            return
+        
+        if index >= len(organs):
+            console.print(f"[red]Нет {attr_name}[{index}]. Доступно: {len(organs)}[/red]")
+            return
+        
+        organ = organs[index]
+        
+        if not hasattr(organ, 'stimulate'):
+            console.print(f"[red]Этот орган не поддерживает стимуляцию[/red]")
             return
         
         # Стимуляция
-        if hasattr(penis, 'stimulate'):
-            penis.stimulate(amount)
-        elif hasattr(penis, 'update_arousal'):
-            penis.update_arousal(amount)
-        else:
-            if hasattr(penis, 'arousal'):
-                penis.arousal = min(1.0, penis.arousal + amount)
-            if hasattr(penis, 'is_erect') and penis.arousal > 0.7:
-                penis.is_erect = True
+        organ.stimulate(amount)
         
-        console.print(f"[magenta]Стимуляция penises[{penis_idx}]... Возбуждение: {penis.arousal:.0%}[/magenta]")
+        # Вывод
+        console.print(f"\n[magenta]Стимуляция {attr_name}[{index}] (+{amount:.1f})[/magenta]")
+        console.print(f"  Возбуждение: [cyan]{organ.arousal:.0%}[/cyan]")
+        console.print(f"  Удовольствие: [green]{organ.pleasure:.1f}[/green]")
         
-        if penis.is_erect:
-            console.print(f"[green]Полная эрекция! Диаметр: {penis.current_diameter:.1f}см[/green]")
+        # Специфичные эффекты
+        if attr_name == "penises":
+            if hasattr(organ, 'is_erect') and organ.is_erect:
+                console.print(f"  [green]↳ Эрекция: {organ.current_diameter:.1f}см[/green]")
+        elif attr_name == "vaginas":
+            if hasattr(organ, 'lubrication'):
+                lub_color = "green" if organ.lubrication > 0.6 else "yellow" if organ.lubrication > 0.3 else "red"
+                console.print(f"  [{lub_color}]↳ Смазка: {organ.lubrication:.0%}[/{lub_color}]")
+        elif attr_name == "clitorises":
+            if hasattr(organ, 'is_erect') and organ.is_erect:
+                console.print(f"  [magenta]↳ Клитор эрегирован: {organ.current_length:.1f}см[/magenta]")
+        elif attr_name == "anuses":
+            if hasattr(organ, 'sphincter_tone'):
+                tone = organ.sphincter_tone
+                state = "расслаблен" if tone < 0.3 else "напряжен" if tone > 0.7 else "норма"
+                console.print(f"  [dim]↳ Тонус: {state} ({tone:.0%})[/dim]")
 
     def cmd_insert_toy(self, args: List[str], ctx):
         """Вставить игрушку/дилдо: insert_toy <target> <organ_idx> [type/size] [length] [diameter]"""
@@ -630,7 +710,14 @@ def register_sex_commands(registry):
     registry.register(Command("cum", ["ejaculate"], "Эякуляция", "cum", cmd_cum_inside, "sex"))
     registry.register(Command("pullout", ["withdraw"], "Извлечь", "pullout", cmd_pullout, "sex"))
     registry.register(Command("sex_status", ["sexstat"], "Статус", "sex_status", cmd_sex_status, "sex"))
-    registry.register(Command("stimulate_self", ["masturbate"], "Стимуляция", "stimulate_self [penis_idx] [amount]", cmd_stimulate_self, "sex"))
+    registry.register(Command(
+        "stimulate_self", 
+        ["masturbate", "stim", "touch"], 
+        "Стимуляция своего органа", 
+        "stimulate_self [organ_type] [index] [amount]",
+        cmd_stimulate_self, 
+        "sex"
+    ))
     registry.register(Command(
         "insert_toy", ["toy", "dildo"], 
         "Вставить игрушку/дилдо", 

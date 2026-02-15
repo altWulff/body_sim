@@ -8,6 +8,7 @@ from typing import Dict, List, Callable, Any, Optional, TYPE_CHECKING
 import math
 import cmath
 
+from body_sim.anatomy.base import Genital
 from body_sim.core.enums import CupSize, BreastState, FluidType
 from body_sim.core.fluids import FluidMixture, BreastFluid, FLUID_DEFS
 from body_sim.core.constants import PRESSURE_LEAK_MIN, MAX_SAG
@@ -22,8 +23,8 @@ if TYPE_CHECKING:
     pass
 
 
-@dataclass
-class Breast:
+@dataclass(kw_only=True)
+class Breast(Genital):
     cup: CupSize
     areola: Areola
     base_elasticity: float = 1.0
@@ -33,8 +34,7 @@ class Breast:
     lactation: LactationSystem = field(default_factory=LactationSystem)
     inflation: InflationSystem = field(default_factory=InflationSystem)
     insertion_manager: InsertionManager = field(default_factory=InsertionManager)
-    
-    _listeners: Dict[str, List[Callable]] = field(default_factory=dict, repr=False)
+
     _state: BreastState = BreastState.EMPTY
     _elasticity: float = field(init=False)
     _sag: float = field(init=False)
@@ -45,13 +45,18 @@ class Breast:
     
     auto_inflate: bool = True
     inflate_ratio_per_100ml: float = 0.05
+    arousal: float = field(default=0.0, repr=False)
+    sensitivity: float = field(default=1.0, repr=False)
 
     def __post_init__(self):
+        Genital.__init__(self)
         self._base_volume = self.cup.base_volume
         self._max_volume = self._base_volume * 1.5
         self._elasticity = self.base_elasticity
         self._sag = 0.0
         self._last_dynamic_cup = self.cup
+        # sensitivity по умолчанию из Genital = 1.0, можно переопределить:
+        self.sensitivity = 1.2  # Грудь чуть более чувствительна
 
     def on(self, event: str, callback: Callable[..., Any]) -> None:
         self._listeners.setdefault(event, []).append(callback)
@@ -408,4 +413,22 @@ class Breast:
         total_flow *= (1.0 - effective_reduction)
         
         return max(0.0, total_flow * (self.leak_factor / 20.0))
+
+    def stimulate(self, intensity: float = 0.1) -> None:
+        """Стимуляция груди через базовый класс Genital."""
+        # Вызываем базовый метод (обновляет arousal/pleasure)
+        super().stimulate(intensity)
+        
+        # Дополнительная логика для груди
+        if self.areola and hasattr(self.areola, 'nipples'):
+            for nipple in self.areola.nipples:
+                if hasattr(nipple, 'stimulate'):
+                    nipple.stimulate(intensity * 0.5)
+        
+        # Стимуляция лактации
+        if hasattr(self, 'lactation') and self.lactation:
+            if self.lactation.state.value >= 2:  # ACTIVE/ENGORGED
+                self.lactation.stimulate()
+        
+        self._emit("stimulated", intensity=intensity, arousal=self.arousal, pleasure=self.pleasure)
     
