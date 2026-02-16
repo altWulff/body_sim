@@ -1820,6 +1820,72 @@ class Uterus:
             return True
 
         return False
+        
+    def get_landmarks(self):
+        """Возвращает анатомические отметки для глубокого проникновения."""
+        from body_sim.systems.advanced_penetration import DepthLandmark, PenetrationDepthZone
+        
+        landmarks = [
+            DepthLandmark(
+                zone=PenetrationDepthZone.VAGINA_FORNIX,
+                depth_cm=self.cervix.length + 0.5,
+                min_diameter=2.5,
+                max_diameter=8.0,
+                resistance_factor=0.4,
+                description="Своды влагалища у шейки матки"
+            ),
+            DepthLandmark(
+                zone=PenetrationDepthZone.CERVIX_OS,
+                depth_cm=self.cervix.length,
+                min_diameter=self.cervix.gape_diameter,
+                max_diameter=self.cervix.max_dilation,
+                resistance_factor=0.7 if not self.cervix.is_open else 0.3,
+                description="Отверстие шейки матки",
+                can_pass=self.cervix.is_open or self.cervix.gape_diameter > 1.5
+            ),
+            DepthLandmark(
+                zone=PenetrationDepthZone.UTERUS_CAVITY,
+                depth_cm=self.cervix.length + 2.0,
+                min_diameter=3.0,
+                max_diameter=self.base_width * self.inflation_ratio * 2,
+                resistance_factor=0.2,
+                description="Полость матки"
+            ),
+            DepthLandmark(
+                zone=PenetrationDepthZone.UTERUS_FUNDUS,
+                depth_cm=self.cervix.length + self.base_length * self.inflation_ratio,
+                min_diameter=4.0,
+                max_diameter=self.base_width * self.inflation_ratio * 3,
+                resistance_factor=0.3,
+                description="Дно матки",
+                stimulation_bonus=1.2
+            ),
+        ]
+        
+        # Добавляем трубы
+        if self.left_tube:
+            landmarks.append(DepthLandmark(
+                zone=PenetrationDepthZone.LEFT_TUBE_ISTHMUS,
+                depth_cm=self.cervix.length + self.base_length + 1.0,
+                min_diameter=0.2,
+                max_diameter=self.left_tube.base_diameter * 3,
+                resistance_factor=0.8,
+                description="Левая труба (истмус)",
+                can_pass=self.left_tube.current_stretch > 1.5
+            ))
+            
+        if self.right_tube:
+            landmarks.append(DepthLandmark(
+                zone=PenetrationDepthZone.RIGHT_TUBE_ISTHMUS,
+                depth_cm=self.cervix.length + self.base_length + 1.0,
+                min_diameter=0.2,
+                max_diameter=self.right_tube.base_diameter * 3,
+                resistance_factor=0.8,
+                description="Правая труба (истмус)",
+                can_pass=self.right_tube.current_stretch > 1.5
+            ))
+        
+        return get_landmarks
 
     def __str__(self) -> str:
         return (

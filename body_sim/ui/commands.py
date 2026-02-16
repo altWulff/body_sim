@@ -10,6 +10,9 @@ from rich.table import Table
 from rich.panel import Panel
 from rich import box
 
+from body_sim.anatomy.genitals import Penis
+
+
 console = Console()
 
 
@@ -816,6 +819,78 @@ def cmd_create_roxy(args: List[str], ctx: CommandContext):
         import traceback
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
+def cmd_penis_type(args: List[str], ctx: CommandContext):
+    """Изменить тип пениса (анатомия, форма, особенности)."""
+    if not ctx.active_body:
+        console.print("[red]No body selected[/red]")
+        return
+    
+    if not ctx.active_body.has_penis:
+        console.print("[red]No penis available[/red]")
+        return
+    
+    if len(args) < 1:
+        console.print("[red]Usage: penis_type <type> [index][/red]")
+        console.print("\n[bold cyan]Available types:[/bold cyan]")
+        
+        # Используем статический метод класса
+        for type_id, name, color in Penis.get_available_types():
+            console.print(f"  [{color}]{type_id:12}[/{color}] - {name}")
+        return
+    
+    type_name = args[0].upper()
+    penis_idx = int(args[1]) if len(args) > 1 else 0
+    
+    if penis_idx >= len(ctx.active_body.penises):
+        console.print(f"[red]Invalid penis index: {penis_idx} (max: {len(ctx.active_body.penises)-1})[/red]")
+        return
+    
+    try:
+        from body_sim.core.enums import PenisType
+        new_type = PenisType[type_name]
+    except KeyError:
+        console.print(f"[red]Unknown penis type: {type_name}[/red]")
+        console.print("[dim]Use 'penis_type' without args to see list[/dim]")
+        return
+    
+    penis = ctx.active_body.penises[penis_idx]
+    
+    # Вызываем метод трансформации
+    result = penis.transform_type(new_type)
+    
+    if not result["success"]:
+        console.print("[red]Transformation failed![/red]")
+        return
+    
+    # Выводим результат
+    console.print(f"[bold green]✓ Penis #{penis_idx} transformed![/bold green]")
+    console.print(f"[dim]{result['old_type'].id} → {result['new_type'].id}[/dim]")
+    
+    if result["size_changed"]:
+        console.print(f"\n[bold]Size changes:[/bold]")
+        
+        len_ratio = result["length_ratio"]
+        len_color = "green" if len_ratio > 1.0 else "red" if len_ratio < 1.0 else "white"
+        console.print(f"  Length: {result['old_length']:.1f}cm → {result['new_length']:.1f}cm "
+                     f"([{len_color}]×{len_ratio:.2f}[/{len_color}])")
+        
+        girth_ratio = result["girth_ratio"]
+        girth_color = "green" if girth_ratio > 1.0 else "red" if girth_ratio < 1.0 else "white"
+        console.print(f"  Girth:  {result['old_girth']:.1f}cm → {result['new_girth']:.1f}cm "
+                     f"([{girth_color}]×{girth_ratio:.2f}[/{girth_color}])")
+    
+    console.print(f"  Urethra: {result['urethra_diameter']:.1f}mm diameter")
+    
+    # Новые особенности
+    if result["new_features"]:
+        features_str = " | ".join(result["new_features"])
+        console.print(f"\n[bold cyan]New features:[/bold cyan] {features_str}")
+    
+    # Инфо об эякуляции
+    if penis.has_scrotum():
+        max_pulse = penis.calculate_max_ejaculate_volume(force=1.0)
+        console.print(f"\n[dim]Ejaculate: ×{result['ejaculate_mult']:.2f} mult | "
+                     f"Max per pulse: {max_pulse:.1f}ml[/dim]")
 
 def cmd_uterus(args: List[str], ctx: CommandContext):
     """Управление маткой (uterus) - система инфляции и жидкости."""
@@ -1356,9 +1431,6 @@ def cmd_tube(args: List[str], ctx: CommandContext):
         console.print(f"[red]Unknown action: {action}[/red]")
         console.print("Actions: status, stretch, evert, reposition, add_fluid, clear")
 
-
-
-
 def cmd_reactions_all(args: List[str], ctx: CommandContext):
     """Показать все реакции (грудь + матка) для текущего персонажа."""
     if not ctx.active_body:
@@ -1750,6 +1822,15 @@ def create_registry() -> CommandRegistry:
         cmd_vagina,
         "genitals"
     ))
+    registry.register(Command(
+        "penis_type", 
+        ["ptype", "penistype", "cock_type"], 
+        "Change penis type/anatomy", 
+        "penis_type <type> [index]", 
+        cmd_penis_type, 
+        "genitals"
+    ))
+
     # Реакции (если доступны)
     try:
         from body_sim.characters.breast_reactions import get_reaction_system, register_reaction_commands

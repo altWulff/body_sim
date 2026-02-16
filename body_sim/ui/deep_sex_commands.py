@@ -9,6 +9,8 @@ from rich.panel import Panel
 from rich.console import Console
 from rich.table import Table
 
+from body_sim.systems.ejaculation import EjaculationController
+
 console = Console()
 
 # Глобальный реестр сессий глубокого проникновения
@@ -20,7 +22,7 @@ class DeepSexCommandHandler:
     
     def __init__(self):
         self.active_sessions = _deep_sessions
-    
+        self.ejaculation_controllers: Dict[int, EjaculationController] = {}  # id(body) -> controller
     def cmd_deep_penetration_start(self, args: List[str], ctx):
         """
         Начать глубокое проникновение: 
@@ -33,7 +35,7 @@ class DeepSexCommandHandler:
             return
         
         if len(args) < 2:
-            console.print("[red]Usage: dpenetrate <target> <organ> [idx] [penis_idx][/red]")
+            console.print("[red]Usage: dpenetrate <target> <organ> [organ_idx] [penis_idx][/red]")
             console.print("Органы: vagina, anus, urethra, nipple")
             console.print("Примеры:")
             console.print("  dpenetrate roxy vagina        - vaginas[0], penises[0]")
@@ -117,6 +119,44 @@ class DeepSexCommandHandler:
             entry_organ_idx=organ_idx
         )
         
+        # === УСТАНОВКА ССЫЛОК НА ОРГАНЫ ДЛЯ ЭЯКУЛЯЦИИ ===
+        if organ_type == "vagina":
+            if hasattr(target, 'vaginas') and organ_idx < len(target.vaginas):
+                encounter.vagina_ref = target.vaginas[organ_idx]
+                # Связываем влагалище с маткой если есть
+                if hasattr(target, 'uterus'):
+                    encounter.uterus_ref = target.uterus
+                    # Устанавливаем обратную связь для автоматического перетекания
+                    encounter.vagina_ref.connected_uterus = target.uterus
+            elif hasattr(target, 'vagina') and organ_idx == 0:
+                encounter.vagina_ref = target.vagina
+                if hasattr(target, 'uterus'):
+                    encounter.uterus_ref = target.uterus
+                    encounter.vagina_ref.connected_uterus = target.uterus
+                    
+        elif organ_type == "anus":
+            if hasattr(target, 'anuses') and organ_idx < len(target.anuses):
+                encounter.anus_ref = target.anuses[organ_idx]
+            elif hasattr(target, 'anus') and organ_idx == 0:
+                encounter.anus_ref = target.anus
+                
+        elif organ_type == "urethra":
+            if hasattr(target, 'urethra'):
+                encounter.urethra_ref = target.urethra
+                
+        elif organ_type == "nipple":
+            # Находим сосок и связанную грудь
+            nipple = self._get_nipple(target, organ_idx)
+            if nipple and nipple.areola:
+                # Находим Breast объект через areola
+                if hasattr(target, 'breast_grid'):
+                    for row in target.breast_grid.rows:
+                        for breast in row:
+                            if breast.areola == nipple.areola:
+                                encounter.breast_ref = breast
+                                encounter.nipple_ref = nipple
+                                break
+        
         # Стартуем базовое проникновение
         success, msg = self._start_basic_penetration(encounter, organ_type, target, organ_idx, penis)
         if not success:
@@ -125,6 +165,10 @@ class DeepSexCommandHandler:
         
         encounter.is_active = True
         self.active_sessions[id(ctx.active_body)] = encounter
+        
+        # Создаем контроллер эякуляции сразу
+        from body_sim.systems.ejaculation import EjaculationController
+        self.ejaculation_controllers[id(ctx.active_body)] = EjaculationController(encounter)
         
         console.print(f"[green]✓ Глубокое проникновение начато: {organ_type}[{organ_idx}][/green]")
         console.print(f"[dim]{msg}[/dim]")
@@ -184,36 +228,85 @@ class DeepSexCommandHandler:
                 del self.active_sessions[id(ctx.active_body)]
         else:
             console.print(session.get_status_display())
-    
+
     def cmd_deep_cum(self, args: List[str], ctx):
-        """Кончить в текущей глубокой зоне: dcum [volume]"""
+        """Кончить в текущей глубокой зоне: dcum [volume] [force]"""
         session = self._get_session(ctx)
         if not session:
             return
         
         try:
-            volume = float(args[0]) if args else 5.0
+            volume = float(args[0]) if args else None
+            force = float(args[1]) if len(args) > 1 else 1.0
         except ValueError:
-            console.print("[red]Объем должен быть числом[/red]")
+            console.print("[red]Аргументы должны быть числами[/red]")
             return
         
-        result = session.ejaculate(volume)
+        # Получаем или создаем контроллер
+        body_id = id(ctx.active_body)
+        if body_id not in self.ejaculation_controllers:
+            from body_sim.systems.ejaculation import EjaculationController
+            self.ejaculation_controllers[body_id] = EjaculationController(session)
         
-        zone = result['zone']
-        target = result.get('target', 'tissue')
+        controller = self.ejaculation_controllers[body_id]
+        
+        # Выполняем эякуляцию
+        result = controller.ejaculate(requested_volume=volume, force=force)
+        
+        # Отображаем результат
+        if not result.success:
+            console.print(f"[red]✗ {result.messages[0] if result.messages else 'Ошибка эякуляции'}[/red]")
+            return
+        
+        # Определяем цвета по зоне
+        zone_colors = {
+            'VAGINA_CANAL': 'pink',
+            'CERVIX': 'red',
+            'UTERUS_CAVITY': 'magenta',
+            'FALLOPIAN_TUBE': 'yellow',
+            'OVARY': 'bright_red',
+            'BREAST_MILK_DUCT': 'cyan',
+        }
+        color = zone_colors.get(result.zone.name, 'white')
+        
+        # Создаем панель с деталями
+        content = [
+            f"[bold {color}]Зона:[/bold {color}] {result.zone.name.replace('_', ' ')}",
+            f"[bold]Цель:[/bold] {type(result.target_organ).__name__ if result.target_organ else 'Unknown'}",
+            f"[bold blue]Объем:[/bold blue] {result.volume_ejaculated:.1f} мл ({result.pulses} пульс.)",
+            f"[bold green]Принято:[/bold green] {result.volume_absorbed:.1f} мл",
+        ]
+        
+        if result.volume_overflow > 0:
+            content.append(f"[bold red]Переполнение:[/bold red] {result.volume_overflow:.1f} мл")
+        
+        if result.special_effect:
+            content.append(f"\n[italic yellow]{result.special_effect}[/italic yellow]")
+        
+        # Показываем остаток спермы
+        if session.penetrating_object and hasattr(session.penetrating_object, 'get_available_volume'):
+            remaining = session.penetrating_object.get_available_volume()
+            content.append(f"\n[dim]Остаток спермы: {remaining:.1f} мл[/dim]")
         
         console.print(Panel(
-            f"[bold magenta]✦ ЭЯКУЛЯЦИЯ ✦[/bold magenta]\n"
-            f"Зона: [cyan]{zone}[/cyan]\n"
-            f"Глубина: [green]{result['depth']:.1f}см[/green]\n"
-            f"Объём: [yellow]{result['volume']:.1f}мл[/yellow]\n"
-            f"Мишень: [red]{target}[/red]",
+            "\n".join(content),
+            title=f"[bold magenta]✦ ЭЯКУЛЯЦИЯ ✦[/bold magenta]",
             border_style="magenta"
         ))
         
-        if result.get('special_effect'):
-            console.print(f"[italic]{result['special_effect']}[/italic]")
-    
+        # Показываем предупреждения если есть (с защитой от не-строк)
+        for msg in result.messages:
+            msg_str = str(msg)  # Защита: конвертируем в строку
+            if "Ошибка" in msg_str or "error" in msg_str.lower():
+                console.print(f"[red]{msg_str}[/red]")
+            else:
+                console.print(f"[dim]{msg_str}[/dim]")
+        
+        # Если переполнение - показываем визуальный эффект
+        if result.volume_overflow > result.volume_ejaculated * 0.3:
+            console.print("[bold red]💦 Жидкость вытекает наружу с силой![/bold red]")
+
+
     def cmd_deep_status(self, args: List[str], ctx):
         """Статус глубокого проникновения: dstatus"""
         session = self._get_session(ctx)

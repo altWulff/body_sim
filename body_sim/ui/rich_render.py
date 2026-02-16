@@ -256,55 +256,16 @@ def render_body_header(body) -> Panel:
     )
 
 
-# def render_body_list(bodies: List, active_idx: int = 0) -> Panel:
-#     """Компактный список тел."""
-#     table = Table(show_header=False, box=box.SIMPLE, padding=(0, 1))
-#     table.add_column("#", width=3)
-#     table.add_column("Sex", width=3)
-#     table.add_column("Name", width=12)
-#     table.add_column("Type", width=5)
-#     table.add_column("Gen", width=10)
-#     table.add_column("Arousal", width=10)
-    
-#     for i, body in enumerate(bodies):
-#         marker = ">" if i == active_idx else " "
-#         sex_color = SEX_COLORS.get(body.sex, "white")
-#         sex_emoji = SEX_EMOJIS.get(body.sex, "?")
-#         type_emoji = BODY_TYPE_EMOJIS.get(body.body_type, "?")
-        
-#         genitals = []
-#         if body.has_penis:
-#             erect = sum(1 for p in body.penises if getattr(p, 'is_erect', False))
-#             genitals.append(f"P{len(body.penises)}{'🔥' if erect else ''}")
-#         if body.has_vagina:
-#             aroused = sum(1 for v in body.vaginas if getattr(v, 'is_aroused', False))
-#             genitals.append(f"V{len(body.vaginas)}{'💧' if aroused else ''}")
-#         if body.has_scrotum:
-#             testicles = sum(len(s.testicles) for s in body.scrotums)
-#             genitals.append(f"T{testicles}")
-        
-#         arousal_bar = make_compact_gradient_bar(body.stats.arousal, 1.0, width=6)
-        
-#         table.add_row(
-#             f"{marker}{i}",
-#             f"[{sex_color}]{sex_emoji}[/{sex_color}]",
-#             f"[{sex_color}]{body.name[:10]}[/{sex_color}]",
-#             type_emoji,
-#             ",".join(genitals) if genitals else "-",
-#             arousal_bar
-#         )
-    
-#     return Panel(table, title="[bold]Bodies[/bold]", border_style="blue", box=box.SIMPLE)
 
 
 # ======================
 # COMPACT GENITALS
 # ======================
-
 def render_penis_compact(penis, index: int = 0) -> str:
-    """Компактный рендер пениса (строка)."""
+    """Компактный рендер пениса с индикатором давления."""
     status = "🔥" if penis.is_erect else "🍆"
     
+<<<<<<< HEAD
     # НОВОЕ: Сперма теперь хранится в яичках, а не в пенисе
     if penis.has_scrotum():
         cum_volume = penis.get_available_volume()  # Берем из scrotum через penis
@@ -315,12 +276,37 @@ def render_penis_compact(penis, index: int = 0) -> str:
     
     return f"{status}#{index}:{penis.current_length:.1f}cm {cum_str}"
 
+=======
+    mult = penis._get_ejaculate_multiplier()
+    mult_symbol = "↑" if mult > 1.0 else "↓" if mult < 1.0 else "→"
+    urethra = penis.current_urethra_diameter
+    
+    if penis.has_scrotum():
+        available = penis.get_available_volume()
+        max_pulse = penis.calculate_max_ejaculate_volume(force=1.0)
+        
+        # НОВОЕ: индикатор давления
+        pressure_tier = penis.scrotum.pressure_tier
+        pressure_emoji = {
+            "low": "💧",
+            "normal": "",
+            "high": "⚠",
+            "critical": "🔴",
+            "rupture_risk": "💥"
+        }.get(pressure_tier, "")
+        
+        return (f"{status}#{index}:{penis.current_length:.1f}cm | "
+                f"U:{urethra:.1f}mm | "
+                f"C:{available:.1f}ml{pressure_emoji} | "
+                f"Max:{max_pulse:.1f}ml/pulse")
+    else:
+        return f"{status}#{index}:{penis.current_length:.1f}cm | U:{urethra:.1f}mm | [red]No scrotum[/red]"
+>>>>>>> ddaf1ea (Add ejaculation system, fix errors)
 
 def render_vagina_compact(vagina, index: int = 0) -> str:
     """Компактный рендер влагалища (строка)."""
     status = "💧" if vagina.is_aroused else "🌸"
     return f"{status}#{index}:{vagina.current_depth:.1f}cm L{vagina.lubrication:.0%}"
-
 
 def render_scrotum_compact(scrotum, index: int = 0) -> str:
     """Компактный рендер мошонки (строка)."""
@@ -333,11 +319,9 @@ def render_scrotum_compact(scrotum, index: int = 0) -> str:
     
     return f"🥚#{index}:{testicles}t {cum_amount:.0f}/{capacity:.0f}ml ({fullness:.0%})"
 
-
 def render_genitals(body) -> Panel:
     from .genitals_render import render_genitals
     return render_genitals(body)
-
 
 # ======================
 # COMPACT UTERUS

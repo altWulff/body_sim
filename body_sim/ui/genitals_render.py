@@ -10,9 +10,9 @@ from rich import box
 
 
 def render_penis(penis, index: int = 0) -> Panel:
-    """Отобразить пенис с информацией о типе."""
+    """Отобразить пенис с информацией о типе и эякуляции."""
     table = Table(show_header=False, box=None, padding=(0, 1))
-    table.add_column("Property", style="dim cyan", width=14)
+    table.add_column("Property", style="dim cyan", width=16)
     table.add_column("Value")
     
     # Статус эрекции
@@ -25,7 +25,7 @@ def render_penis(penis, index: int = 0) -> Panel:
     
     table.add_row("Status:", status)
     
-    # ТИП ПЕНИСА
+    # ТИП ПЕНИСА с множителем
     type_color = {
         "human": "white",
         "knotted": "red",
@@ -46,9 +46,13 @@ def render_penis(penis, index: int = 0) -> Panel:
         "bifurcated": "pink"
     }.get(penis.penis_type.id, "white")
     
+    ejaculate_mult = penis._get_ejaculate_multiplier()
+    mult_color = "green" if ejaculate_mult > 1.0 else "yellow" if ejaculate_mult == 1.0 else "red"
+    
     table.add_row(
         "Type:", 
-        f"[{type_color}]{penis.penis_type.type_name}[/{type_color}]"
+        f"[{type_color}]{penis.penis_type.type_name}[/{type_color}] "
+        f"([{mult_color}]×{ejaculate_mult:.2f}[/{mult_color}])"
     )
     
     # Особые характеристики
@@ -83,6 +87,38 @@ def render_penis(penis, index: int = 0) -> Panel:
     table.add_row("Girth:", f"{penis.current_girth:.1f}cm")
     table.add_row("Diameter:", f"{penis.current_diameter:.1f}cm")
     
+    # НОВОЕ: Уретра и эякуляция
+    if penis.is_erect:
+        urethra_color = "bright_cyan"
+        urethra_note = " (expanded)"
+    else:
+        urethra_color = "cyan"
+        urethra_note = ""
+    
+    table.add_row(
+        "Urethra:", 
+        f"[{urethra_color}]{penis.current_urethra_diameter:.1f}mm[/{urethra_color}]{urethra_note}"
+    )
+    
+    # Расчет потенциала эякуляции
+    if penis.has_scrotum():
+        max_pulse = penis.calculate_max_ejaculate_volume(force=1.0)
+        max_strong = penis.calculate_max_ejaculate_volume(force=1.5)
+        
+        table.add_row(
+            "Ejaculate/pulse:", 
+            f"[yellow]{max_pulse:.1f}-{max_strong:.1f}ml[/yellow] per contraction"
+        )
+        
+        # Сколько пульсаций нужно для полной разгрузки
+        available = penis.get_available_volume()
+        if available > 0:
+            pulses_needed = int(available / max_pulse) + 1
+            table.add_row(
+                "Full unload:", 
+                f"~{pulses_needed} pulses ({available:.1f}ml available)"
+            )
+    
     # Узел если есть
     if penis.has_knot:
         table.add_row("Knot:", f"[red]{penis.knot_girth:.1f}cm[/red]")
@@ -95,7 +131,11 @@ def render_penis(penis, index: int = 0) -> Panel:
     table.add_row("Arousal:", f"{penis.arousal:.0%}")
     table.add_row("Pleasure:", f"{penis.pleasure:.2f}")
     
+<<<<<<< HEAD
     # НОВОЕ: Сперма хранится в яичках (через scrotum), пенис - только трубка
+=======
+    # НОВОЕ: Сперма в яичках с детализацией
+>>>>>>> ddaf1ea (Add ejaculation system, fix errors)
     if penis.has_scrotum():
         from body_sim.core.enums import FluidType
         available_cum = penis.get_available_volume(FluidType.CUM)
@@ -108,6 +148,7 @@ def render_penis(penis, index: int = 0) -> Panel:
                 "Cum (testicles):", 
                 f"[{cum_color}]{available_cum:.1f}ml / {total_capacity:.1f}ml[/{cum_color}] ({fullness_pct:.0%})"
             )
+<<<<<<< HEAD
         else:
             table.add_row("Cum:", "[dim]No capacity[/dim]")
         
@@ -119,29 +160,36 @@ def render_penis(penis, index: int = 0) -> Panel:
     
     # Объём самого пениса (ткань)
     table.add_row("Volume:", f"{penis.volume:.1f}ml [dim](tissue only)[/dim]")
+=======
+        
+        testicle_count = len(penis.scrotum.testicles)
+        table.add_row("Testicles:", f"🥚 ×{testicle_count} [dim](connected)[/dim]")
+        
+        # Производство
+        if penis.scrotum.testicles:
+            prod_rate = sum(
+                t.fluid_production_rates.get(FluidType.CUM, 0) 
+                for t in penis.scrotum.testicles
+            )
+            table.add_row("Production:", f"{prod_rate:.2f}ml/tick")
+    else:
+        table.add_row("Cum:", "[red]⚠ No scrotum[/red]")
+    
+    # Объём ткани
+    table.add_row("Volume:", f"{penis.volume:.1f}ml [dim](tissue)[/dim]")
+>>>>>>> ddaf1ea (Add ejaculation system, fix errors)
     
     if penis.is_transformed_clitoris:
-        table.add_row("Note:", "[magenta italic]Трансформированный клитор[/magenta italic]")
+        table.add_row("Note:", "[magenta italic]Transformed clitoris[/]")
     
-    # Эмодзи для заголовка
+    # Эмодзи
     type_emoji = {
-        "human": "🍆",
-        "knotted": "🍆",
-        "tapered": "🥖",
-        "flared": "🍄",
-        "barbed": "🌵",
-        "double": "🍆🍆",
-        "prehensile": "🐙",
-        "equine": "🐴",
-        "canine": "🐕",
-        "feline": "🐱",
-        "dragon": "🐲",
-        "demon": "😈",
-        "tentacle": "🦑",
-        "horseshoe": "🔱",
-        "spiral": "🌀",
-        "ribbed": "〰️",
-        "bifurcated": "🔱"
+        "human": "🍆", "knotted": "🍆", "tapered": "🥖",
+        "flared": "🍄", "barbed": "🌵", "double": "🍆🍆",
+        "prehensile": "🐙", "equine": "🐴", "canine": "🐕",
+        "feline": "🐱", "dragon": "🐲", "demon": "😈",
+        "tentacle": "🦑", "horseshoe": "🔱", "spiral": "🌀",
+        "ribbed": "〰️", "bifurcated": "🔱"
     }.get(penis.penis_type.id, "🍆")
     
     return Panel(
@@ -151,7 +199,7 @@ def render_penis(penis, index: int = 0) -> Panel:
         box=box.ROUNDED,
         padding=(0, 1)
     )
-
+    
 
 def render_vagina(vagina, index: int = 0) -> Panel:
     """Отобразить влагалище с информацией о типе."""
@@ -319,6 +367,7 @@ def render_scrotum(scrotum, index: int = 0) -> Panel:
         temp = scrotum.testicles[0].temperature
         temp_color = "red" if temp > 37.5 else "blue" if temp < 35 else "green"
         table.add_row("Temperature:", f"[{temp_color}]{temp:.1f}°C[/{temp_color}]")
+<<<<<<< HEAD
         
         # Производство спермы
         if scrotum.testicles:
@@ -327,6 +376,39 @@ def render_scrotum(scrotum, index: int = 0) -> Panel:
                 for t in scrotum.testicles
             )
             table.add_row("Production:", f"{prod_rate:.2f}ml/tick")
+=======
+        # НОВОЕ: Давление
+        pressure = scrotum.total_pressure
+        pressure_mult = scrotum.pressure_multiplier
+        tier = scrotum.pressure_tier
+        
+        tier_colors = {
+            "low": "blue",
+            "normal": "green", 
+            "high": "yellow",
+            "critical": "red",
+            "rupture_risk": "bright_red"
+        }
+        tier_emoji = {
+            "low": "💧",
+            "normal": "✓",
+            "high": "⚠",
+            "critical": "🔴",
+            "rupture_risk": "💥"
+        }
+        
+        p_color = tier_colors.get(tier, "white")
+        p_emoji = tier_emoji.get(tier, "?")
+        
+        table.add_row("Pressure:", f"[{p_color}]{p_emoji} {pressure:.1f} ({tier})[/{p_color}]")
+        table.add_row("Ejac mult:", f"×{pressure_mult:.2f}")
+        
+        # Детали по яичкам если есть опасное давление
+        if tier in ["critical", "rupture_risk"]:
+            for i, testicle in enumerate(scrotum.testicles):
+                if testicle.pressure_tier in ["critical", "rupture_risk"]:
+                    table.add_row(f"Testicle {i}:", f"[red]{testicle.pressure:.1f} {testicle.pressure_tier}[/red]")
+>>>>>>> ddaf1ea (Add ejaculation system, fix errors)
     
     return Panel(
         table,

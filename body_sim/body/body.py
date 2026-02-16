@@ -19,20 +19,6 @@ from body_sim.systems.grid import BreastGrid
 from body_sim.systems.penetration import CrossBodyPenetration
 
 
-class Body:
-    def __init__(self, name: str, sex: Sex):
-        self.name = name
-        from body_sim.systems.advanced_penetration import create_urethra_for_body
-        self.urethra = create_urethra_for_body(self)
-        # Инициализация sexual encounter
-        self.active_sex: Optional[CrossBodyPenetration] = None
-    
-    def start_sex_with(self, target: 'Body', target_organ: str = "vagina", 
-                       source_organ: str = "penis") -> CrossBodyPenetration:
-        """Начать половой акт с другим телом"""
-        self.active_sex = CrossBodyPenetration(self, target, source_organ, target_organ)
-        return self.active_sex
-
 @dataclass
 class Body:
     name: str = "Unnamed"
@@ -268,12 +254,33 @@ class Body:
         
         # Запоминаем сколько было до (для инфо)
         available_before = penis.get_available_volume()
+<<<<<<< HEAD
         
         # Пенис забирает сперму напрямую из яичек
         amount = penis.ejaculate(force=force)
+=======
+>>>>>>> ddaf1ea (Add ejaculation system, fix errors)
         
-        self._emit("ejaculation", penis_idx=penis_index, amount=amount, force=force)
+        # Пенис забирает сперму напрямую из яичек (через scrotum.drain_fluid внутри)
+        result = penis.ejaculate(force=force)
         
+<<<<<<< HEAD
+=======
+        # Проверяем результат
+        if result.get("amount", 0) <= 0:
+            return {
+                "success": False, 
+                "reason": result.get("reason", "empty"),
+                "available_before": available_before
+            }
+        
+        self._emit("ejaculation", 
+                   penis_idx=penis_index, 
+                   amount=result["amount"], 
+                   force=force,
+                   pulses=result.get("pulses", 1))
+        
+>>>>>>> ddaf1ea (Add ejaculation system, fix errors)
         # После эякуляции возбуждение падает
         self.stats.arousal *= 0.7
         penis.flaccid()
@@ -281,10 +288,18 @@ class Body:
         return {
             "success": True,
             "penis_index": penis_index,
+<<<<<<< HEAD
             "amount": amount,
             "force": force,
             "available_before": available_before,
             "remaining_in_scrotum": penis.get_available_volume()
+=======
+            "amount": result["amount"],
+            "pulses": result.get("pulses", 1),
+            "force": force,
+            "available_before": available_before,
+            "remaining_in_scrotum": result.get("remaining_in_testicles", 0)
+>>>>>>> ddaf1ea (Add ejaculation system, fix errors)
         }
     
     def ejaculate_all(self, force: float = 1.0) -> List[Dict[str, Any]]:
@@ -309,10 +324,17 @@ class Body:
         for vagina in self.vaginas:
             vagina.tick(dt)
         
+<<<<<<< HEAD
         # Производство спермы в яичках (хранится там же)
         for scrotum in self.scrotums:
             scrotum.tick(dt, self.stats.arousal)
             # УБРАНО: Перенос спермы в пенис - она остается в яичках до эякуляции
+=======
+        # Производство спермы в яичках (хранится там же, переноса в пенис НЕТ)
+        for scrotum in self.scrotums:
+            scrotum.tick(dt, self.stats.arousal)
+            # УДАЛЕНО: Перенос спермы в пенис — она забирается только при эякуляции
+>>>>>>> ddaf1ea (Add ejaculation system, fix errors)
         
         for anus in self.anuses:
             anus.tick(dt)
@@ -336,7 +358,10 @@ class MaleBody(Body):
     scrotum_type: ScrotumType = ScrotumType.STANDARD
     
     def _setup_genitals(self) -> None:
+<<<<<<< HEAD
         # Создаем мошонку первой (хранилище спермы)
+=======
+>>>>>>> ddaf1ea (Add ejaculation system, fix errors)
         scrotum = Scrotum(
             scrotum_type=self.scrotum_type,
             has_testicles=True,
@@ -345,17 +370,28 @@ class MaleBody(Body):
         )
         self.scrotums.append(scrotum)
         
+<<<<<<< HEAD
         # Создаем пенисы и связываем их с мошонкой
         for i in range(self.penis_count):
             penis = Penis(
+=======
+        for i in range(self.penis_count):
+            self.penises.append(Penis(
+>>>>>>> ddaf1ea (Add ejaculation system, fix errors)
                 name=f"penis_{i}",
                 base_length=self.penis_size,
                 base_girth=self.penis_girth,
                 penis_type=self.penis_type,
+<<<<<<< HEAD
                 scrotum=scrotum  # Ключевая связь: пенис получает сперму из мошонки
             )
             self.penises.append(penis)
         
+=======
+                scrotum=scrotum
+            ))
+    
+>>>>>>> ddaf1ea (Add ejaculation system, fix errors)
         self.clitorises = []
         self.vaginas = []
     
