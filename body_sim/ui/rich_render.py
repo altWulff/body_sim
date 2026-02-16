@@ -304,8 +304,16 @@ def render_body_header(body) -> Panel:
 def render_penis_compact(penis, index: int = 0) -> str:
     """Компактный рендер пениса (строка)."""
     status = "🔥" if penis.is_erect else "🍆"
-    cum_pct = (penis.current_cum_volume / penis.cum_reservoir * 100) if penis.cum_reservoir > 0 else 0
-    return f"{status}#{index}:{penis.current_length:.1f}cm C{cum_pct:.0f}%"
+    
+    # НОВОЕ: Сперма теперь хранится в яичках, а не в пенисе
+    if penis.has_scrotum():
+        cum_volume = penis.get_available_volume()  # Берем из scrotum через penis
+        # Показываем объем спермы в яичках (не в пенисе!)
+        cum_str = f"C{cum_volume:.1f}ml"
+    else:
+        cum_str = "C[red]X[/red]"  # Нет яичков - нет спермы
+    
+    return f"{status}#{index}:{penis.current_length:.1f}cm {cum_str}"
 
 
 def render_vagina_compact(vagina, index: int = 0) -> str:
@@ -318,7 +326,12 @@ def render_scrotum_compact(scrotum, index: int = 0) -> str:
     """Компактный рендер мошонки (строка)."""
     testicles = len(scrotum.testicles)
     fullness = scrotum.fullness
-    return f"🥚#{index}:{testicles}t F{fullness:.0%}"
+    
+    # Детализация по сперме
+    cum_amount = scrotum.total_stored_fluids.get(FluidType.CUM, 0)
+    capacity = scrotum.total_storage_capacity
+    
+    return f"🥚#{index}:{testicles}t {cum_amount:.0f}/{capacity:.0f}ml ({fullness:.0%})"
 
 
 def render_genitals(body) -> Panel:

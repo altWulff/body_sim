@@ -39,17 +39,20 @@ class Penis(Genital):
     is_transformed_clitoris: bool = False
     original_clitoris_size: float = 0.0
     
-    cum_reservoir: float = field(init=False)
-    current_cum_volume: float = 0.0
-
+    # НОВОЕ: Ссылка на мошонку (хранилище спермы)
+    scrotum: Optional['Scrotum'] = field(default=None, repr=False)
+    
+    # УБРАНО: cum_reservoir, current_cum_volume - сперма только в яичках!
+    
     # Эрекция
-    erection_factor: float = 1.3  # Множитель при эрекции
-    is_erect: bool = False
-
-    cum_regen_rate: float = 0.5  # мл/тик
+    erection_factor: float = 1.3
+    # Убран дубликат is_erect!
+    
+    # УБРАНО: cum_regen_rate - регенерация только в яичках
+    
     knot_girth: float = 0.0
     
-    # Особые характеристики (заполняются из типа)
+    # Особые характеристики типа
     has_knot: bool = False
     knot_factor: float = 1.0
     has_barbs: bool = False
@@ -75,9 +78,7 @@ class Penis(Genital):
         """Применяем характеристики типа."""
         self._apply_type_stats()
         self._recalculate_dimensions()
-        radius = self.base_girth / (2 * math.pi)
-        volume_cm3 = math.pi * radius ** 2 * self.base_length
-        self.cum_reservoir = volume_cm3 * 0.1
+        # УБРАН расчет резервуара спермы - он теперь только в Scrotum/Testicle
     
     def _apply_type_stats(self):
         """Применить характеристики типа пениса."""
@@ -105,16 +106,14 @@ class Penis(Genital):
     
     def _recalculate_dimensions(self):
         """Пересчитать размеры с учётом типа."""
-        # Узел (для caninе/knotted)
         if self.has_knot:
             self.knot_girth = self.current_girth * self.knot_factor
         else:
             self.knot_girth = self.current_girth
         
-        # Расширение головки (для equine/flared)
         self.flare_girth = self.current_girth * self.flare_factor
 
-    def get_insertable_object(self) -> InsertableObject:
+    def getInsertableObject(self) -> InsertableObject:
         """Преобразовать в InsertableObject для пенетрации"""
         return InsertableObject(
             name=self.name or "penis",
@@ -125,18 +124,66 @@ class Penis(Genital):
             inserted_depth=0.0
         )
     
+    # НОВЫЕ МЕТОДЫ для работы со спермой из яичек:
+    
+    def get_available_fluids(self) -> Dict[FluidType, float]:
+        """Получить доступные жидкости из яичек (пенис - только трубка)."""
+        if self.scrotum:
+            return self.scrotum.total_stored_fluids
+        return {}
+    
+    def get_available_volume(self, fluid_type: FluidType = FluidType.CUM) -> float:
+        """Сколько спермы/жидкости доступно в яичках."""
+        return self.get_available_fluids().get(fluid_type, 0.0)
+    
+    def has_scrotum(self) -> bool:
+        """Подключены ли яички."""
+        return self.scrotum is not None
+    
     def produce_cum_for_encounter(self, arousal_boost: float = 1.0) -> float:
-        """Производство спермы во время акта"""
-        if hasattr(self, 'testicles') and self.testicles:
-            # Производство через яички
-            if hasattr(self.testicles, 'produce'):
-                produced = self.testicles.produce(1.0 * arousal_boost)
-                return sum(produced.values()) if isinstance(produced, dict) else produced
-        # Или прямое добавление
-        amount = 0.5 * arousal_boost
-        self.current_cum_volume = min(getattr(self, 'cum_reservoir', 50), self.current_cum_volume + amount)
-        return amount 
-
+        """
+        Забирает сперму из яичек для эякуляции.
+        Вызывается при оргазме. Возвращает объем забранной спермы.
+        """
+        if not self.scrotum:
+            return 0.0
+            
+        # Забираем пропорционально возбуждению (но не больше чем есть)
+        available = self.get_available_volume(FluidType.CUM)
+        amount = available * min(1.0, 0.5 + arousal_boost * 0.5)
+        
+        return self.scrotum.drain_fluid(FluidType.CUM, amount)
+    
+    def ejaculate(self, amount: Optional[float] = None, 
+                  fluid_type: FluidType = FluidType.CUM,
+                  force: float = 1.0) -> float:
+        """
+        Эякуляция. Пенис забирает жидкость из яичек и "доставляет" её.
+        Без яичек эякуляция невозможна (возвращает 0).
+        """
+        if not self.scrotum:
+            return 0.0
+            
+        available = self.get_available_volume(fluid_type)
+        
+        if amount is None:
+            # По умолчанию забираем всё или пропорционально силе оргазма
+            amount = available * force
+        
+        # Забираем из яичек через мошонку
+        actual = self.scrotum.drain_fluid(fluid_type, amount)
+        return actual
+    
+    def ejaculate_all(self, ratio: float = 1.0) -> Dict[FluidType, float]:
+        """Полная эякуляция всех доступных жидкостей из яичек."""
+        if not self.scrotum:
+            return {}
+        return self.scrotum.drain_all(ratio)
+    
+    # УБРАНЫ старые методы (не нужны, т.к. сперма не хранится в пенисе):
+    # - produce_cum() 
+    # - regenerate_cum()
+    # - старое свойство volume (которое было для спермы)
     
     @property
     def current_length(self) -> float:
@@ -152,17 +199,18 @@ class Penis(Genital):
 
     @property
     def volume(self) -> float:
+        """Объем самого пениса (ткани), не спермы!"""
         r = self.current_girth / (2 * math.pi)
         length = self.current_length
         
-        # Базовый объём
-        volume = math.pi * r ** 2 * length * 0.8  # 80% цилиндр
+        # Объем ткани пениса
+        volume = math.pi * r ** 2 * length * 0.8
         
-        # Добавляем объём головки
+        # Добавляем объем головки
         flare_r = (self.flare_girth / math.pi) / 2
         volume += (1/3) * math.pi * flare_r * flare_r * (length * 0.2)
         
-        # Добавляем объём узла
+        # Добавляем объем узла
         if self.has_knot:
             knot_r = (self.knot_girth / math.pi) / 2
             volume += (4/3) * math.pi * knot_r * knot_r * knot_r * 0.3
@@ -185,14 +233,6 @@ class Penis(Genital):
         if self.foreskin:
             self.foreskin_retracted = False
 
-    def produce_cum(self, amount: float) -> None:
-        self.current_cum_volume = min(self.cum_reservoir, self.current_cum_volume + amount)
-
-    def ejaculate(self, force: float = 1.0) -> float:
-        amount = self.current_cum_volume * force
-        self.current_cum_volume -= amount
-        return amount
-
     def can_penetrated(self, orifice_diameter: float) -> bool:
         return self.current_diameter <= orifice_diameter * 1.2
 
@@ -206,7 +246,6 @@ class Penis(Genital):
         if self.arousal > 0.6:
             self.is_erect = True
             self.state = PenisState.ERECT
-            # Увеличиваем размеры при эрекции
             self.current_length = self.base_length * self.penis_type.length_factor * self.erection_factor
             self.current_girth = self.base_girth * self.penis_type.girth_factor * (1 + (self.arousal - 0.6) * 0.3)
         elif self.arousal > 0.3:
@@ -219,23 +258,6 @@ class Penis(Genital):
             self._recalculate_dimensions()
         
         self.current_diameter = self.current_girth / math.pi
-        self._calculate_volume()
-    
-    def ejaculate(self, amount: Optional[float] = None) -> float:
-        """Эякуляция. Возвращает объём спермы."""
-        if amount is None:
-            amount = self.current_cum_volume
-        
-        actual = min(amount, self.current_cum_volume)
-        self.current_cum_volume -= actual
-        return actual
-    
-    def regenerate_cum(self):
-        """Регенерация спермы."""
-        self.current_cum_volume = min(
-            self.cum_reservoir,
-            self.current_cum_volume + self.cum_regen_rate
-        )
     
     def get_description(self) -> str:
         """Получить описание пениса."""
@@ -260,6 +282,11 @@ class Penis(Genital):
             features.append(f"раздвоенный на {self.split_depth:.0%}")
         if self.glows:
             features.append("светится")
+        
+        # Добавляем инфо о сперме из яичек
+        if self.has_scrotum():
+            cum_amount = self.get_available_volume(FluidType.CUM)
+            features.append(f"спермы: {cum_amount:.1f}мл")
         
         if features:
             desc += " (" + ", ".join(features) + ")"

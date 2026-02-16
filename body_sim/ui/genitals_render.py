@@ -95,15 +95,30 @@ def render_penis(penis, index: int = 0) -> Panel:
     table.add_row("Arousal:", f"{penis.arousal:.0%}")
     table.add_row("Pleasure:", f"{penis.pleasure:.2f}")
     
-    # Сперма
-    cum_color = "yellow" if penis.current_cum_volume > penis.cum_reservoir * 0.8 else "cyan"
-    table.add_row(
-        "Cum:", 
-        f"[{cum_color}]{penis.current_cum_volume:.1f}ml / {penis.cum_reservoir:.1f}ml[/{cum_color}]"
-    )
+    # НОВОЕ: Сперма хранится в яичках (через scrotum), пенис - только трубка
+    if penis.has_scrotum():
+        from body_sim.core.enums import FluidType
+        available_cum = penis.get_available_volume(FluidType.CUM)
+        total_capacity = penis.scrotum.total_storage_capacity
+        
+        if total_capacity > 0:
+            fullness_pct = available_cum / total_capacity
+            cum_color = "yellow" if fullness_pct > 0.8 else "cyan" if fullness_pct > 0.3 else "dim"
+            table.add_row(
+                "Cum (testicles):", 
+                f"[{cum_color}]{available_cum:.1f}ml / {total_capacity:.1f}ml[/{cum_color}] ({fullness_pct:.0%})"
+            )
+        else:
+            table.add_row("Cum:", "[dim]No capacity[/dim]")
+        
+        # Показываем количество яичек
+        testicle_count = len(penis.scrotum.testicles)
+        table.add_row("Testicles:", f"🥚 ×{testicle_count} [dim](connected)[/dim]")
+    else:
+        table.add_row("Cum:", "[red]⚠ No scrotum connected[/red]")
     
-    # Объём
-    table.add_row("Volume:", f"{penis.volume:.1f}ml")
+    # Объём самого пениса (ткань)
+    table.add_row("Volume:", f"{penis.volume:.1f}ml [dim](tissue only)[/dim]")
     
     if penis.is_transformed_clitoris:
         table.add_row("Note:", "[magenta italic]Трансформированный клитор[/magenta italic]")
@@ -275,14 +290,43 @@ def render_scrotum(scrotum, index: int = 0) -> Panel:
     
     testicle_count = len(scrotum.testicles)
     table.add_row("Testicles:", f"🥚 ×{testicle_count}")
-    table.add_row("Fullness:", f"{scrotum.fullness:.0%}")
-    table.add_row("Capacity:", f"{scrotum.total_storage_capacity:.1f}ml")
-    table.add_row("Stored:", f"{scrotum.total_stored_volume:.1f}ml")
+    
+    # Детализация по сперме (основное хранилище)
+    from body_sim.core.enums import FluidType
+    cum_amount = scrotum.total_stored_fluids.get(FluidType.CUM, 0)
+    capacity = scrotum.total_storage_capacity
+    
+    if capacity > 0:
+        fullness_pct = scrotum.fullness
+        fullness_color = "green" if fullness_pct < 0.5 else "yellow" if fullness_pct < 0.8 else "red"
+        table.add_row("Capacity:", f"{capacity:.1f}ml")
+        table.add_row(
+            "Cum storage:", 
+            f"[{fullness_color}]{cum_amount:.1f}ml ({fullness_pct:.0%})[/{fullness_color}]"
+        )
+    else:
+        table.add_row("Capacity:", "[dim]0ml[/dim]")
+    
+    # Другие жидкости в яичках (если есть)
+    other_fluids = {k: v for k, v in scrotum.total_stored_fluids.items() if k != FluidType.CUM and v > 0}
+    if other_fluids:
+        fluid_strs = []
+        for fluid_type, amount in other_fluids.items():
+            fluid_strs.append(f"{fluid_type.value}: {amount:.1f}ml")
+        table.add_row("Other fluids:", " | ".join(fluid_strs))
     
     if scrotum.testicles:
         temp = scrotum.testicles[0].temperature
         temp_color = "red" if temp > 37.5 else "blue" if temp < 35 else "green"
         table.add_row("Temperature:", f"[{temp_color}]{temp:.1f}°C[/{temp_color}]")
+        
+        # Производство спермы
+        if scrotum.testicles:
+            prod_rate = sum(
+                t.fluid_production_rates.get(FluidType.CUM, 0) 
+                for t in scrotum.testicles
+            )
+            table.add_row("Production:", f"{prod_rate:.2f}ml/tick")
     
     return Panel(
         table,

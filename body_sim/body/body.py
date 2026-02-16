@@ -50,7 +50,7 @@ class Body:
     
     _listeners: Dict[str, List] = field(default_factory=dict, repr=False)
 
-    active_sex: Optional[CrossBodyPenetration] = None
+    active_sex: Optional[CrossBodyPenetration] = field(default=None, init=False)
     
     def __post_init__(self):
         self._setup_genitals()
@@ -76,7 +76,8 @@ class Body:
         for cb in self._listeners.get(event, []):
             cb(self, **data)
 
-    def start_sex_with(self, target: 'Body', target_organ: str = "vagina", source_organ: str = "penis") -> CrossBodyPenetration:
+    def start_sex_with(self, target: 'Body', target_organ: str = "vagina", 
+                       source_organ: str = "penis") -> CrossBodyPenetration:
         """Начать половой акт с другим телом"""
         self.active_sex = CrossBodyPenetration(self, target, source_organ, target_organ)
         return self.active_sex
@@ -114,6 +115,7 @@ class Body:
     
     @property
     def total_cum_storage(self) -> float:
+        """Общий объем спермы во всех яичках тела."""
         total = 0.0
         for scrotum in self.scrotums:
             for testicle in scrotum.testicles:
@@ -122,6 +124,7 @@ class Body:
 
     @property
     def total_cum_capacity(self) -> float:
+        """Общая вместимость всех яичек."""
         return sum(s.total_storage_capacity for s in self.scrotums)
 
     def add_penis(self, penis: Penis) -> int:
@@ -140,9 +143,15 @@ class Body:
     def transform_clitoris_to_penis(self, clitoris_idx: int, 
                                     target_length: float = 10.0,
                                     target_girth: float = 8.0) -> Optional[int]:
+        """Трансформировать клитор в пенис."""
         if 0 <= clitoris_idx < len(self.clitorises):
             clit = self.clitorises[clitoris_idx]
             penis = clit.transform_to_penis(target_length, target_girth)
+            
+            # НОВОЕ: Если у тела есть мошонка, подключаем пенис к ней
+            if self.scrotums:
+                penis.scrotum = self.scrotums[0]
+            
             return self.add_penis(penis)
         return None
     
@@ -241,6 +250,10 @@ class Body:
         return False
     
     def ejaculate(self, penis_index: int = 0, force: float = 1.0) -> Dict[str, Any]:
+        """
+        Эякуляция через указанный пенис.
+        Пенис сам забирает сперму из подключенной мошонки.
+        """
         if penis_index >= len(self.penises):
             return {"success": False, "reason": "invalid_penis_index"}
         
@@ -249,20 +262,19 @@ class Body:
         if not penis.is_erect:
             return {"success": False, "reason": "not_erect"}
         
-        total_available = self.total_cum_storage
-        if total_available > 0:
-            for scrotum in self.scrotums:
-                scrotum_cum = sum(
-                    t.stored_fluids.get(FluidType.CUM, 0.0) 
-                    for t in scrotum.testicles
-                )
-                transfer = scrotum.drain_fluid(FluidType.CUM, scrotum_cum * 0.5)
-                penis.produce_cum(transfer)
+        # Проверяем, подключена ли мошонка
+        if not penis.has_scrotum():
+            return {"success": False, "reason": "no_scrotum_connected"}
         
-        amount = penis.ejaculate(force)
+        # Запоминаем сколько было до (для инфо)
+        available_before = penis.get_available_volume()
+        
+        # Пенис забирает сперму напрямую из яичек
+        amount = penis.ejaculate(force=force)
         
         self._emit("ejaculation", penis_idx=penis_index, amount=amount, force=force)
         
+        # После эякуляции возбуждение падает
         self.stats.arousal *= 0.7
         penis.flaccid()
         
@@ -270,10 +282,13 @@ class Body:
             "success": True,
             "penis_index": penis_index,
             "amount": amount,
-            "force": force
+            "force": force,
+            "available_before": available_before,
+            "remaining_in_scrotum": penis.get_available_volume()
         }
     
     def ejaculate_all(self, force: float = 1.0) -> List[Dict[str, Any]]:
+        """Эякуляция всеми эрегированными пенисами."""
         results = []
         for i in range(len(self.penises)):
             if self.penises[i].is_erect:
@@ -281,8 +296,10 @@ class Body:
         return results
     
     def tick(self, dt: float = 1.0) -> None:
+        """Обновление состояния тела."""
         self.stats.tick(dt)
         
+        # Обновление гениталий
         for penis in self.penises:
             penis.tick(dt)
         
@@ -292,23 +309,10 @@ class Body:
         for vagina in self.vaginas:
             vagina.tick(dt)
         
+        # Производство спермы в яичках (хранится там же)
         for scrotum in self.scrotums:
             scrotum.tick(dt, self.stats.arousal)
-            
-            if scrotum.has_testicles and self.penises:
-                total_production_rate = 0.0
-                for testicle in scrotum.testicles:
-                    cum_rate = testicle.fluid_production_rates.get(FluidType.CUM, 0.0)
-                    total_production_rate += cum_rate
-                
-                transfer_amount = total_production_rate * dt * 0.1
-                if transfer_amount > 0:
-                    total_transfer = scrotum.drain_fluid(FluidType.CUM, transfer_amount)
-                    
-                    if total_transfer > 0:
-                        per_penis = total_transfer / len(self.penises)
-                        for penis in self.penises:
-                            penis.produce_cum(per_penis)
+            # УБРАНО: Перенос спермы в пенис - она остается в яичках до эякуляции
         
         for anus in self.anuses:
             anus.tick(dt)
@@ -332,20 +336,25 @@ class MaleBody(Body):
     scrotum_type: ScrotumType = ScrotumType.STANDARD
     
     def _setup_genitals(self) -> None:
-        for i in range(self.penis_count):
-            self.penises.append(Penis(
-                name=f"penis_{i}",
-                base_length=self.penis_size,
-                base_girth=self.penis_girth,
-                penis_type=self.penis_type
-            ))
-        
-        self.scrotums.append(Scrotum(
+        # Создаем мошонку первой (хранилище спермы)
+        scrotum = Scrotum(
             scrotum_type=self.scrotum_type,
             has_testicles=True,
             testicle_size=self.testicle_size,
             testicle_count=2
-        ))
+        )
+        self.scrotums.append(scrotum)
+        
+        # Создаем пенисы и связываем их с мошонкой
+        for i in range(self.penis_count):
+            penis = Penis(
+                name=f"penis_{i}",
+                base_length=self.penis_size,
+                base_girth=self.penis_girth,
+                penis_type=self.penis_type,
+                scrotum=scrotum  # Ключевая связь: пенис получает сперму из мошонки
+            )
+            self.penises.append(penis)
         
         self.clitorises = []
         self.vaginas = []
@@ -431,27 +440,33 @@ class FutanariBody(Body):
     breast_cup: str = "E"
     breast_count: int = 2
     penis_type: PenisType = PenisType.HUMAN
-    testicle_size: TesticleSize = TesticleSize.AVERAGE
     scrotum_type: ScrotumType = ScrotumType.STANDARD
     vagina_type: VaginaType = VaginaType.HUMAN
     
     def _setup_genitals(self) -> None:
-        for i in range(self.penis_count):
-            self.penises.append(Penis(
-                name=f"penis_{i}",
-                base_length=self.penis_size,
-                base_girth=self.penis_girth,
-                penis_type=self.penis_type
-            ))
-        
+        # Создаем мошонку (даже если внутренняя - сперма всё равно там)
+        scrotum = None
         if self.has_scrotum:
-            self.scrotums.append(Scrotum(
+            scrotum = Scrotum(
                 has_testicles=True,
                 testicle_size=self.testicle_size,
                 is_internal=self.internal_testicles,
                 scrotum_type=self.scrotum_type
-            ))
+            )
+            self.scrotums.append(scrotum)
         
+        # Создаем пенисы с привязкой к мошонке
+        for i in range(self.penis_count):
+            penis = Penis(
+                name=f"penis_{i}",
+                base_length=self.penis_size,
+                base_girth=self.penis_girth,
+                penis_type=self.penis_type,
+                scrotum=scrotum  # Связь с хранилищем спермы
+            )
+            self.penises.append(penis)
+        
+        # Создаем влагалища
         for i in range(self.vagina_count):
             self.vaginas.append(Vagina(
                 name=f"vagina_{i}",
@@ -460,6 +475,7 @@ class FutanariBody(Body):
                 vagina_type=self.vagina_type
             ))
         
+        # Создаем клиторы
         for i in range(self.clitoris_count):
             enlargement = 2.0 if self.clitoris_enlarged else 1.0
             self.clitorises.append(Clitoris(
@@ -488,4 +504,3 @@ class FutanariBody(Body):
     def _setup_uterus(self):
         """Создать матку с трубами и яичниками."""
         self.uterus_system = UterusSystem()
-        
