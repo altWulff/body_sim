@@ -131,11 +131,7 @@ def render_penis(penis, index: int = 0) -> Panel:
     table.add_row("Arousal:", f"{penis.arousal:.0%}")
     table.add_row("Pleasure:", f"{penis.pleasure:.2f}")
     
-<<<<<<< HEAD
-    # НОВОЕ: Сперма хранится в яичках (через scrotum), пенис - только трубка
-=======
     # НОВОЕ: Сперма в яичках с детализацией
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
     if penis.has_scrotum():
         from body_sim.core.enums import FluidType
         available_cum = penis.get_available_volume(FluidType.CUM)
@@ -148,19 +144,6 @@ def render_penis(penis, index: int = 0) -> Panel:
                 "Cum (testicles):", 
                 f"[{cum_color}]{available_cum:.1f}ml / {total_capacity:.1f}ml[/{cum_color}] ({fullness_pct:.0%})"
             )
-<<<<<<< HEAD
-        else:
-            table.add_row("Cum:", "[dim]No capacity[/dim]")
-        
-        # Показываем количество яичек
-        testicle_count = len(penis.scrotum.testicles)
-        table.add_row("Testicles:", f"🥚 ×{testicle_count} [dim](connected)[/dim]")
-    else:
-        table.add_row("Cum:", "[red]⚠ No scrotum connected[/red]")
-    
-    # Объём самого пениса (ткань)
-    table.add_row("Volume:", f"{penis.volume:.1f}ml [dim](tissue only)[/dim]")
-=======
         
         testicle_count = len(penis.scrotum.testicles)
         table.add_row("Testicles:", f"🥚 ×{testicle_count} [dim](connected)[/dim]")
@@ -177,7 +160,6 @@ def render_penis(penis, index: int = 0) -> Panel:
     
     # Объём ткани
     table.add_row("Volume:", f"{penis.volume:.1f}ml [dim](tissue)[/dim]")
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
     
     if penis.is_transformed_clitoris:
         table.add_row("Note:", "[magenta italic]Transformed clitoris[/]")
@@ -367,16 +349,6 @@ def render_scrotum(scrotum, index: int = 0) -> Panel:
         temp = scrotum.testicles[0].temperature
         temp_color = "red" if temp > 37.5 else "blue" if temp < 35 else "green"
         table.add_row("Temperature:", f"[{temp_color}]{temp:.1f}°C[/{temp_color}]")
-<<<<<<< HEAD
-        
-        # Производство спермы
-        if scrotum.testicles:
-            prod_rate = sum(
-                t.fluid_production_rates.get(FluidType.CUM, 0) 
-                for t in scrotum.testicles
-            )
-            table.add_row("Production:", f"{prod_rate:.2f}ml/tick")
-=======
         # НОВОЕ: Давление
         pressure = scrotum.total_pressure
         pressure_mult = scrotum.pressure_multiplier
@@ -408,7 +380,6 @@ def render_scrotum(scrotum, index: int = 0) -> Panel:
             for i, testicle in enumerate(scrotum.testicles):
                 if testicle.pressure_tier in ["critical", "rupture_risk"]:
                     table.add_row(f"Testicle {i}:", f"[red]{testicle.pressure:.1f} {testicle.pressure_tier}[/red]")
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
     
     return Panel(
         table,
