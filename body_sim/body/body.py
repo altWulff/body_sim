@@ -254,18 +254,9 @@ class Body:
         
         # Запоминаем сколько было до (для инфо)
         available_before = penis.get_available_volume()
-<<<<<<< HEAD
-        
-        # Пенис забирает сперму напрямую из яичек
-        amount = penis.ejaculate(force=force)
-=======
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
-        
+    
         # Пенис забирает сперму напрямую из яичек (через scrotum.drain_fluid внутри)
         result = penis.ejaculate(force=force)
-        
-<<<<<<< HEAD
-=======
         # Проверяем результат
         if result.get("amount", 0) <= 0:
             return {
@@ -279,8 +270,7 @@ class Body:
                    amount=result["amount"], 
                    force=force,
                    pulses=result.get("pulses", 1))
-        
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
+
         # После эякуляции возбуждение падает
         self.stats.arousal *= 0.7
         penis.flaccid()
@@ -288,18 +278,11 @@ class Body:
         return {
             "success": True,
             "penis_index": penis_index,
-<<<<<<< HEAD
-            "amount": amount,
-            "force": force,
-            "available_before": available_before,
-            "remaining_in_scrotum": penis.get_available_volume()
-=======
             "amount": result["amount"],
             "pulses": result.get("pulses", 1),
             "force": force,
             "available_before": available_before,
             "remaining_in_scrotum": result.get("remaining_in_testicles", 0)
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
         }
     
     def ejaculate_all(self, force: float = 1.0) -> List[Dict[str, Any]]:
@@ -324,17 +307,10 @@ class Body:
         for vagina in self.vaginas:
             vagina.tick(dt)
         
-<<<<<<< HEAD
-        # Производство спермы в яичках (хранится там же)
-        for scrotum in self.scrotums:
-            scrotum.tick(dt, self.stats.arousal)
-            # УБРАНО: Перенос спермы в пенис - она остается в яичках до эякуляции
-=======
         # Производство спермы в яичках (хранится там же, переноса в пенис НЕТ)
         for scrotum in self.scrotums:
             scrotum.tick(dt, self.stats.arousal)
             # УДАЛЕНО: Перенос спермы в пенис — она забирается только при эякуляции
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
         
         for anus in self.anuses:
             anus.tick(dt)
@@ -358,10 +334,7 @@ class MaleBody(Body):
     scrotum_type: ScrotumType = ScrotumType.STANDARD
     
     def _setup_genitals(self) -> None:
-<<<<<<< HEAD
         # Создаем мошонку первой (хранилище спермы)
-=======
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
         scrotum = Scrotum(
             scrotum_type=self.scrotum_type,
             has_testicles=True,
@@ -369,29 +342,14 @@ class MaleBody(Body):
             testicle_count=2
         )
         self.scrotums.append(scrotum)
-        
-<<<<<<< HEAD
-        # Создаем пенисы и связываем их с мошонкой
-        for i in range(self.penis_count):
-            penis = Penis(
-=======
         for i in range(self.penis_count):
             self.penises.append(Penis(
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
                 name=f"penis_{i}",
                 base_length=self.penis_size,
                 base_girth=self.penis_girth,
                 penis_type=self.penis_type,
-<<<<<<< HEAD
                 scrotum=scrotum  # Ключевая связь: пенис получает сперму из мошонки
-            )
-            self.penises.append(penis)
-        
-=======
-                scrotum=scrotum
             ))
-    
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
         self.clitorises = []
         self.vaginas = []
     

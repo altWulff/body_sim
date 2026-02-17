@@ -386,6 +386,50 @@ def cmd_help(args: List[str], ctx: CommandContext):
 • У вас должен быть пенис с достаточной эрекцией
 • Используйте 'stimulate penis' или 'stimulate_self' перед penetrate
 """,
+"combat": """
+[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
+[bold cyan]║                    COMBAT SYSTEM                             ║[/bold cyan]
+[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
+
+[bold yellow]⚔️ БОЕВЫЕ КОМАНДЫ[/bold yellow]
+
+  [green]combat_start [idx1] [idx2][/green] - Начать бой между телами
+  [green]combat_status / cstat[/green]  - Показать статус боя и скиллы
+  [green]combat_use <n> <target>[/green] - Использовать скилл (n - номер)
+  [green]combat_skip / cskip[/green]    - Пропустить ход
+  [green]combat_end / cend[/green]      - Завершить бой досрочно
+
+[bold yellow]🎯 МЕХАНИКА[/bold yellow]
+
+• Бой пошаговый, каждый ход дается 3 AP (Action Points)
+• Скиллы требуют AP и имеют перезарядку (cooldown)
+• Анатомия тела определяет доступные скиллы:
+  - Грудь: Milk Spray, Breast Crush (>800ml)
+  - Матка: Uterus Slam (пролапс или >60% fill)
+  - Пенис: Cum Blast, Deep Pierce
+  - Яичники: Ovary Burst (самоповреждение!)
+  
+[bold yellow]💥 ТИПЫ УРОНА[/bold yellow]
+
+  BLUNT    - Удар/давление (Breast Crush)
+  FLUID    - Жидкостный (Milk Spray, Cum Blast)
+  PIERCE   - Пронзание (Prolapse Whip)
+  STRETCH  - Растяжение (Deep Pierce)
+  HORMONE  - Гормональный (Ovary Burst)
+  INTERNAL - Внутренний урон органам
+
+[bold yellow]⚡ СТАТУСЫ[/bold yellow]
+
+  Оглушение (Stun)    - Пропуск хода
+  Утечка (Leaking)    - Потеря жидкости каждый ход
+  Критическое сост.   - При HP < 20%
+
+[bold magenta]Пример:[/bold magenta]
+  > combat_start 0 1    # Начать бой между телом 0 и 1
+  > cstat               # Смотрим скиллы
+  > cuse 1 Roxy         # Использовать скилл 1 на Roxy
+  > cskip               # Пропустить ход
+        """,
     }
 
     if topic in help_topics:
@@ -1875,5 +1919,17 @@ def create_registry() -> CommandRegistry:
         console.print(f"[dim]Deep penetration commands not available: {e}[/dim]")
     except Exception as e:
         console.print(f"[yellow]Warning: Failed to load deep penetration commands: {e}[/yellow]")
+
+          # ============ COMBAT COMMANDS ============
+    try:
+        from body_sim.combat.commands import register_combat_commands
+        register_combat_commands(registry)
+        console.print("[dim]Combat system integrated[/dim]")
+    except ImportError as e:
+        console.print(f"[dim]Combat system not available: {e}[/dim]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to load combat system: {e}[/yellow]")
+
+    return registry
 
     return registry

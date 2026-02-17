@@ -265,18 +265,6 @@ def render_penis_compact(penis, index: int = 0) -> str:
     """Компактный рендер пениса с индикатором давления."""
     status = "🔥" if penis.is_erect else "🍆"
     
-<<<<<<< HEAD
-    # НОВОЕ: Сперма теперь хранится в яичках, а не в пенисе
-    if penis.has_scrotum():
-        cum_volume = penis.get_available_volume()  # Берем из scrotum через penis
-        # Показываем объем спермы в яичках (не в пенисе!)
-        cum_str = f"C{cum_volume:.1f}ml"
-    else:
-        cum_str = "C[red]X[/red]"  # Нет яичков - нет спермы
-    
-    return f"{status}#{index}:{penis.current_length:.1f}cm {cum_str}"
-
-=======
     mult = penis._get_ejaculate_multiplier()
     mult_symbol = "↑" if mult > 1.0 else "↓" if mult < 1.0 else "→"
     urethra = penis.current_urethra_diameter
@@ -301,7 +289,6 @@ def render_penis_compact(penis, index: int = 0) -> str:
                 f"Max:{max_pulse:.1f}ml/pulse")
     else:
         return f"{status}#{index}:{penis.current_length:.1f}cm | U:{urethra:.1f}mm | [red]No scrotum[/red]"
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
 
 def render_vagina_compact(vagina, index: int = 0) -> str:
     """Компактный рендер влагалища (строка)."""

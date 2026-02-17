@@ -40,24 +40,11 @@ class Penis(Genital):
     is_transformed_clitoris: bool = False
     original_clitoris_size: float = 0.0
     
-<<<<<<< HEAD
-    # НОВОЕ: Ссылка на мошонку (хранилище спермы)
-    scrotum: Optional['Scrotum'] = field(default=None, repr=False)
-    
-    # УБРАНО: cum_reservoir, current_cum_volume - сперма только в яичках!
-    
-    # Эрекция
-    erection_factor: float = 1.3
-    # Убран дубликат is_erect!
-    
-    # УБРАНО: cum_regen_rate - регенерация только в яичках
-=======
     # Ссылка на мошонку (хранилище спермы)
     scrotum: Optional['Scrotum'] = field(default=None, repr=False)
     
     # Эрекция
     erection_factor: float = 1.3
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
     
     knot_girth: float = 0.0
     
@@ -87,10 +74,6 @@ class Penis(Genital):
         """Применяем характеристики типа."""
         self._apply_type_stats()
         self._recalculate_dimensions()
-<<<<<<< HEAD
-        # УБРАН расчет резервуара спермы - он теперь только в Scrotum/Testicle
-=======
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
     
     def _apply_type_stats(self):
         """Применить характеристики типа пениса."""
@@ -133,8 +116,7 @@ class Penis(Genital):
         
         self.flare_girth = self.current_girth * self.flare_factor
 
-<<<<<<< HEAD
-=======
+
     @property
     def current_urethra_diameter(self) -> float:
         """Текущий диаметр уретры (расширяется при эрекции)."""
@@ -144,7 +126,6 @@ class Penis(Genital):
             return base * (1.2 + self.arousal * 0.2)
         return base
 
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
     def getInsertableObject(self) -> InsertableObject:
         """Преобразовать в InsertableObject для пенетрации"""
         return InsertableObject(
@@ -156,15 +137,8 @@ class Penis(Genital):
             inserted_depth=0.0
         )
     
-<<<<<<< HEAD
-    # НОВЫЕ МЕТОДЫ для работы со спермой из яичек:
-    
-    def get_available_fluids(self) -> Dict[FluidType, float]:
-        """Получить доступные жидкости из яичек (пенис - только трубка)."""
-=======
     def get_available_fluids(self) -> Dict[FluidType, float]:
         """Получить доступные жидкости из яичек."""
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
         if self.scrotum:
             return self.scrotum.total_stored_fluids
         return {}
@@ -177,7 +151,6 @@ class Penis(Genital):
         """Подключены ли яички."""
         return self.scrotum is not None
     
-<<<<<<< HEAD
     def produce_cum_for_encounter(self, arousal_boost: float = 1.0) -> float:
         """
         Забирает сперму из яичек для эякуляции.
@@ -222,7 +195,6 @@ class Penis(Genital):
     # - produce_cum() 
     # - regenerate_cum()
     # - старое свойство volume (которое было для спермы)
-=======
     def _get_ejaculate_multiplier(self) -> float:
         """
         Множитель объема эякуляции на основе анатомии.
@@ -346,8 +318,6 @@ class Penis(Genital):
             "target": "vagina"  # <-- Мишень по умолчанию
         }
 
-
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
     
     def ejaculate_all(self, force: float = 1.0) -> Dict[str, Any]:
         """Попытка полной эякуляции (может занять несколько пульсаций)."""
@@ -372,22 +342,11 @@ class Penis(Genital):
         r = self.current_girth / (2 * math.pi)
         length = self.current_length
         
-<<<<<<< HEAD
-        # Объем ткани пениса
-        volume = math.pi * r ** 2 * length * 0.8
-        
-        # Добавляем объем головки
-        flare_r = (self.flare_girth / math.pi) / 2
-        volume += (1/3) * math.pi * flare_r * flare_r * (length * 0.2)
-        
-        # Добавляем объем узла
-=======
         volume = math.pi * r ** 2 * length * 0.8
         
         flare_r = (self.flare_girth / math.pi) / 2
         volume += (1/3) * math.pi * flare_r * flare_r * (length * 0.2)
-        
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
+
         if self.has_knot:
             knot_r = (self.knot_girth / math.pi) / 2
             volume += (4/3) * math.pi * knot_r * knot_r * knot_r * 0.3
@@ -423,13 +382,8 @@ class Penis(Genital):
         if self.arousal > 0.6:
             self.is_erect = True
             self.state = PenisState.ERECT
-<<<<<<< HEAD
-            self.current_length = self.base_length * self.penis_type.length_factor * self.erection_factor
-            self.current_girth = self.base_girth * self.penis_type.girth_factor * (1 + (self.arousal - 0.6) * 0.3)
-=======
             # УБРАНО: self.current_length и self.current_girth - это property,
             # они автоматически пересчитаются при изменении is_erect
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
         elif self.arousal > 0.3:
             self.is_erect = False
             self.state = PenisState.SEMI_ERECT
@@ -438,13 +392,9 @@ class Penis(Genital):
             self.is_erect = False
             self.state = PenisState.FLACCID
             self._recalculate_dimensions()
-        
-<<<<<<< HEAD
-        self.current_diameter = self.current_girth / math.pi
-=======
+
         # УБРАНО: self.current_diameter = self.current_girth / math.pi
         # current_diameter тоже property, вычисляется автоматически
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
     
     def get_description(self) -> str:
         """Получить описание пениса."""
@@ -470,17 +420,11 @@ class Penis(Genital):
         if self.glows:
             features.append("светится")
         
-<<<<<<< HEAD
-        # Добавляем инфо о сперме из яичек
-        if self.has_scrotum():
-            cum_amount = self.get_available_volume(FluidType.CUM)
-=======
         # Инфо об уретре и сперме
         if self.has_scrotum():
             cum_amount = self.get_available_volume()
             urethra = self.current_urethra_diameter
             features.append(f"уретра {urethra:.1f}мм")
->>>>>>> ddaf1ea (Add ejaculation system, fix errors)
             features.append(f"спермы: {cum_amount:.1f}мл")
         
         if features:
