@@ -141,17 +141,40 @@ def cmd_combat_use(args: List[str], ctx: CommandContext):
         console.print("[red]Нет активного боя![/red]")
         return
     
-    if len(args) < 2:
+    if len(args) < 1:
         console.print("[red]Usage: combat_use <skill_num> <target_name>[/red]")
         console.print("[dim]Пример: combat_use 1 Roxy[/dim]")
+        console.print("[dim]Пример: combat_use 1 \"Roxy Migurdia\"[/dim]")
         return
     
     try:
         skill_idx = int(args[0]) - 1  # 1-based для пользователя
-        target_name = args[1]
     except ValueError:
         console.print("[red]Неверный номер скила[/red]")
         return
+    
+    # Склеиваем все оставшиеся аргументы и убираем кавычки
+    if len(args) > 1:
+        target_name = " ".join(args[1:]).strip('"\'')
+    else:
+        # Интерактивный выбор если имя не указано
+        current = manager.get_current()
+        targets = [p for p in manager.participants 
+                  if p != current and p.is_alive()]
+        if not targets:
+            console.print("[red]Нет доступных целей![/red]")
+            return
+        
+        console.print("Доступные цели:")
+        for i, t in enumerate(targets):
+            console.print(f"  {i+1}. {t.name}")
+        
+        try:
+            choice = int(input("Выберите цель (номер): ")) - 1
+            target_name = targets[choice].name
+        except (ValueError, IndexError):
+            console.print("[red]Неверный выбор[/red]")
+            return
     
     user = manager.get_current()
     if not user:
@@ -161,6 +184,8 @@ def cmd_combat_use(args: List[str], ctx: CommandContext):
     target = next((p for p in manager.participants if p.name == target_name), None)
     if not target:
         console.print(f"[red]Цель '{target_name}' не найдена![/red]")
+        available = ", ".join([p.name for p in manager.participants])
+        console.print(f"[dim]Доступные: {available}[/dim]")
         return
     
     result = manager.execute_skill(user, skill_idx, target)
@@ -169,7 +194,9 @@ def cmd_combat_use(args: List[str], ctx: CommandContext):
     # Автопереход хода если AP закончились
     if user.stats.ap <= 0:
         manager.next_turn()
-        console.print(f"[dim]Ход завершен. Следующий: {manager.get_current().name if manager.get_current() else 'None'}[/dim]")
+        next_fighter = manager.get_current()
+        if next_fighter:
+            console.print(f"[dim]Ход завершен. Следующий: {next_fighter.name}[/dim]")
     
     # Проверка конца боя
     if manager.is_combat_end():
