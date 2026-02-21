@@ -105,6 +105,21 @@ class Color(Enum):
     BROWN = "brown"
     DARK_BROWN = "dark_brown"
     BLACKISH = "blackish"
+    LIGHT_BEIGE = "light_beige"
+    PALE_IVORY = "pale_ivory"
+    GREEN = "green"
+    DARK_RED = "dark_red"
+    RED = "red"
+    BEIGE = "beige"
+    BLUE = "blue"
+    GRAY = "gray"
+    GOLD = "gold"
+    SILVER = "silver"
+    YELLOW = "yellow"
+    BLACK = "black"
+    PURPLE = "purple"
+    WHITE = "white"
+    TRANSLUCENT = "translucent"
 
 
 class AreolaTexture(Enum):
@@ -154,6 +169,14 @@ class InsertableMaterial(Enum):
 
 
 # ========== Тело и гениталии ==========
+class GenitalVisibility(Enum):
+    """Уровень видимости гениталий."""
+    COVERED = 0        # Полностью скрыты
+    PARTIAL = 0.3      # Контуры видны
+    EXPOSED = 0.7      # Открыты, но не детально
+    FULL = 1.0         # Полностью видны все детали
+
+
 class Sex(Enum):
     MALE = auto()
     FEMALE = auto()
@@ -279,6 +302,7 @@ class VaginaType(Enum):
     DEMONIC = ("demonic", "Демоническое", {"depth_factor": 1.4, "tightness": 0.85, "elasticity": 1.3, "self_lubricating": True, "glows": True})
     PLANT = ("plant", "Растительное", {"depth_factor": 1.1, "tightness": 0.9, "elasticity": 1.4, "can_expand": True, "photosensitive": True})
     SLIME = ("slime", "Слизистое", {"depth_factor": 1.2, "tightness": 0.6, "elasticity": 2.0, "is_slime": True, "can_reform": True})
+    FELINE = ("feline", "Кошачее", {})
     
     def __init__(self, id: str, name: str, stats: dict):
         self.id = id

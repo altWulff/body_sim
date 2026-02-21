@@ -5,22 +5,45 @@
 
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
+import random
 
-from body_sim.core.enums import Sex, BodyType, TesticleSize, CupSize, Color, FluidType, PenisType, VaginaType, ScrotumType
+from body_sim.core.enums import Sex, BodyType, TesticleSize, CupSize, Color, FluidType, PenisType, VaginaType, ScrotumType, GenitalVisibility
 from body_sim.body.stats import BodyStats
 from body_sim.anatomy import *
 from body_sim.systems.grid import BreastGrid
 from body_sim.systems.penetration import CrossBodyPenetration
 from body_sim.magic import MagicMixin
+from body_sim.appearance import AppearanceMixin, Race, EyeAppearance, EarAppearance, EyeType, EarType, RACE_ANATOMY_PRESETS, get_race_preset, get_random_race_size
 
 
 
 @dataclass
-class Body(MagicMixin):
+class Body(MagicMixin, AppearanceMixin):
     name: str = "Unnamed"
     sex: Sex = Sex.NONE
     body_type: BodyType = BodyType.AVERAGE
     stats: BodyStats = field(default_factory=BodyStats)
+    race: Race = Race.HUMAN
+
+    # Глаза (пара)
+    eyes: EyeAppearance = field(default_factory=lambda: EyeAppearance(
+        type=EyeType.HUMAN, color=Color.BROWN, glow=False
+    ))
+    
+    # Уши
+    ears: EarAppearance = field(default_factory=lambda: EarAppearance(
+        type=EarType.HUMAN, length=2.0
+    ))
+    
+    # Кожа/чешуя/слизь
+    skin_color: Color = Color.LIGHT_BEIGE
+    skin_texture: str = "smooth"  # smooth, scaly, slimy, fur, etc.
+    
+    # === ВИДИМОСТЬ ===
+    genital_visibility: GenitalVisibility = GenitalVisibility.COVERED
+    clothing_coverage: Dict[str, float] = field(default_factory=lambda: {
+        "chest": 1.0, "groin": 1.0, "anus": 1.0
+    })
     
     breast_grid: Optional[BreastGrid] = None
     penises: List[Penis] = field(default_factory=list)
@@ -29,18 +52,27 @@ class Body(MagicMixin):
     scrotums: List[Scrotum] = field(default_factory=list)
     anuses: List[Anus] = field(default_factory=list)
     uterus_system: Optional[UterusSystem] = None
-    
-    _listeners: Dict[str, List] = field(default_factory=dict, repr=False)
 
     active_sex: Optional[CrossBodyPenetration] = field(default=None, init=False)
     
+    _listeners: Dict[str, List] = field(default_factory=dict, repr=False)
+
+    
     def __post_init__(self):
+        # Применяем пресет расы
+        AppearanceMixin.__post_init__(self)
+        # Настройка анатомии по полу и расе
         self._setup_genitals()
         self._setup_uterus()
         self._setup_breasts()
+        
+        # Анус есть у всех
         if not self.anuses:
             self.anuses.append(Anus())
+        
+        # Инициализация магии
         self.init_magic()
+
             
     def _setup_uterus(self) -> None:
         "Создание системы маток."
@@ -51,6 +83,95 @@ class Body(MagicMixin):
     
     def _setup_breasts(self) -> None:
         pass
+
+    def _create_breast(self, cup: CupSize, side: str) -> Breast:
+        """Фабрика груди с расовыми параметрами."""
+        preset = self._preset
+        
+        areola_size = preset.get("areola_size", 3.0) * (1 + cup.value * 0.1)
+        nipple_color = preset.get("nipple_color", Color.LIGHT_PINK)
+        
+        nipple = Nipple(
+            base_length=0.6 if cup != CupSize.FLAT else 0.3,
+            base_width=0.8 + (cup.value * 0.1),
+            color=nipple_color
+        )
+        
+        areola = Areola(
+            base_diameter=areola_size,
+            color=nipple_color,
+            nipples=[nipple],
+            puffiness=0.2 if self.race == Race.ORC else 0.1
+        )
+        
+        return Breast(
+            cup=cup,
+            areola=areola,
+            base_elasticity=preset.get("elasticity", 0.8),
+            name=f"breast_{side}",
+            sensitivity=1.2 if self.sex == Sex.FEMALE else 0.8
+        )
+
+    def _get_penis_type(self) -> PenisType:
+        """Определить тип пениса по расе."""
+        return self._preset.get("penis_type", PenisType.HUMAN)
+    
+    def _get_vagina_type(self) -> VaginaType:
+        """Определить тип влагалища по расе."""
+        return self._preset.get("vagina_type", VaginaType.HUMAN)
+    
+    def _get_scrotum_type(self) -> ScrotumType:
+        """Определить тип мошонки по расе."""
+        return self._preset.get("scrotum_type", ScrotumType.STANDARD)
+    
+    def _get_random_size(self, param: str) -> float:
+        """Получить случайный размер из диапазона пресета."""
+        if param in self._preset:
+            min_v, max_v = self._preset[param]
+            return random.uniform(min_v, max_v)
+        return 15.0  # default
+
+    def change_race(self, new_race: Race, regenerate: bool = True):
+        """Сменить расу с опциональной перегенерацией анатомии."""
+        old_race = self.race
+        self.race = new_race
+        self._preset = RACE_ANATOMY_PRESETS.get(new_race, RACE_ANATOMY_PRESETS[Race.HUMAN])
+        
+        # Обновляем внешность
+        self._setup_race_appearance()
+        
+        if regenerate:
+            # Очищаем и пересоздаем гениталии
+            self.penises.clear()
+            self.vaginas.clear()
+            self.clitorises.clear()
+            self.scrotums.clear()
+            self._setup_genitals()
+            self._setup_breasts()
+            
+            if self.sex in (Sex.FEMALE, Sex.FUTANARI) and not self.uterus_system:
+                self._setup_uterus()
+        
+        self._emit("race_changed", old=old_race, new=new_race)
+    
+    def change_sex(self, new_sex: Sex):
+        """Сменить биологический пол."""
+        self.sex = new_sex
+        
+        # Очищаем старое
+        self.penises.clear()
+        self.vaginas.clear()
+        self.clitorises.clear()
+        self.scrotums.clear()
+        self.uterus_system = None
+        self.breast_grid = None
+        
+        # Пересоздаем
+        self._setup_genitals()
+        self._setup_uterus()
+        self._setup_breasts()
+        
+        self._emit("sex_changed", new_sex=new_sex)
     
     def on(self, event: str, callback) -> None:
         self._listeners.setdefault(event, []).append(callback)
@@ -95,6 +216,24 @@ class Body(MagicMixin):
         if self.uterus_system:
             return self.uterus_system.primary
         return self.uterus
+
+    @property
+    def is_fertile(self) -> bool:
+        """Проверка фертильности (упрощенно)."""
+        if not self.has_uterus:
+            return False
+        # TODO: Добавить проверку цикла, состояния яичников и т.д.
+        return True
+    
+    def get_appearance_description(self) -> str:
+        """Текстовое описание внешности."""
+        parts = [
+            f"{self.age:.0f}yo {self.race.name} {self.sex.name}",
+            f"{self.height:.0f}cm, {self.weight:.0f}kg",
+            f"{self.eyes.color.name} {self.eyes.type.name} eyes",
+            f"{self.ears.type.name} ears ({self.ears.length:.1f}cm)"
+        ]
+        return ", ".join(parts)
     
     @property
     def total_cum_storage(self) -> float:
@@ -293,6 +432,7 @@ class Body(MagicMixin):
     def tick(self, dt: float = 1.0) -> None:
         """Обновление состояния тела."""
         self.stats.tick(dt)
+        AppearanceMixin.tick(self, dt)
         
         # Обновление гениталий
         for penis in self.penises:
@@ -321,6 +461,10 @@ class Body(MagicMixin):
 
         self.magic_tick()
 
+    def _get_random_size(self, param: str) -> float:
+        """Получить случайный размер из диапазона пресета."""
+        return get_random_race_size(self.race, param)
+
 
 @dataclass 
 class MaleBody(Body):
@@ -333,7 +477,9 @@ class MaleBody(Body):
     scrotum_type: ScrotumType = ScrotumType.STANDARD
     
     def _setup_genitals(self) -> None:
-        # Создаем мошонку первой (хранилище спермы)
+        length = self.penis_size or self._get_random_size("penis_length")
+        girth = self.penis_girth or self._get_random_size("penis_girth")
+
         scrotum = create_scrotum(
             scrotum_type=self.scrotum_type,
             has_testicles=True,
@@ -344,19 +490,18 @@ class MaleBody(Body):
         for i in range(self.penis_count):
             self.penises.append(create_penis(
                 name=f"penis_{i}",
-                base_length=self.penis_size,
-                base_girth=self.penis_girth,
-                penis_type=self.penis_type,
+                base_length=length,
+                base_girth=girth,
+                penis_type=self._get_penis_type(),
                 scrotum=scrotum  # Ключевая связь: пенис получает сперму из мошонки
             ))
         self.clitorises = []
         self.vaginas = []
-    
+
     def _setup_breasts(self) -> None:
-        nipple = Nipple(base_length=0.3, base_width=0.5, color=Color.LIGHT_PINK)
-        areola = Areola(base_diameter=2.5, nipples=[nipple], color=Color.LIGHT_PINK)
-        breast = Breast(cup=CupSize.FLAT, areola=areola, base_elasticity=1.2)
-        self.breast_grid = BreastGrid(rows=[[breast, breast]], labels=[["left", "right"]])
+        l_breast = self._create_breast(CupSize.FLAT, "left")
+        r_breast = self._create_breast(CupSize.FLAT, "right")
+        self.breast_grid = BreastGrid(rows=[[l_breast, r_breast]], labels=[["left", "right"]])
 
     def _setup_uterus(self):
         """Мужское тело не имеет матки."""
@@ -377,37 +522,41 @@ class FemaleBody(Body):
     clitoris_size: float = 1.5
     
     def _setup_genitals(self) -> None:
+        depth = self.vagina_depth or self._get_random_size("vagina_depth")
+        
         for i in range(self.vagina_count):
             self.vaginas.append(create_vagina(
-                name=f"vagina_{i}",
-                base_depth=self.vagina_depth,
-                base_width=self.vagina_width,
-                vagina_type=self.vagina_type
+                vagina_type=self._get_vagina_type(),
+                base_depth=depth,
+                base_width=3.0 + (0.5 if self.race == Race.ORC else 0)
             ))
         
         for i in range(self.clitoris_count):
             self.clitorises.append(Clitoris(
                 name=f"clitoris_{i}",
-                base_length=self.clitoris_size
+                base_length=1.5,
+                can_transform=self.race in (Race.DEMON, Race.SHAPESHIFTER)
             ))
-        
+
         self.penises = []
         self.scrotums = []
     
     def _setup_breasts(self) -> None:
-        cup = CupSize[self.breast_cup.upper()]
+        if self.breast_cup:
+            cup = CupSize[self.breast_cup.upper()]
+        else:
+            # Случайный размер из пресета расы
+            options = self._preset.get("breast_cup", [CupSize.B, CupSize.C])
+            cup = random.choice(options)
+        
         breasts = []
         labels = []
-        
         for i in range(self.breast_count):
-            nipple = Nipple(base_length=0.6, base_width=0.8, color=Color.LIGHT_PINK)
-            areola = Areola(base_diameter=4.0, nipples=[nipple], color=Color.LIGHT_PINK)
-            breast = Breast(cup=cup, areola=areola, base_elasticity=1.0)
-            breasts.append(breast)
-            labels.append(f"B{i}")
-        breasts_row = [breasts]
-        labels_row = [labels]
-        self.breast_grid = BreastGrid(rows=breasts_row, labels=[labels])
+            side = ["left", "right", "center"][min(i, 2)]
+            breasts.append(self._create_breast(cup, side))
+            labels.append(f"B{i+1}")
+        
+        self.breast_grid = BreastGrid(rows=[breasts], labels=[labels])
     
     def _setup_uterus(self):
         """Создать матку с трубами и яичниками."""
@@ -435,65 +584,61 @@ class FutanariBody(Body):
     penis_type: PenisType = PenisType.HUMAN
     scrotum_type: ScrotumType = ScrotumType.STANDARD
     vagina_type: VaginaType = VaginaType.HUMAN
-    
+
+
     def _setup_genitals(self) -> None:
-        # Создаем мошонку (даже если внутренняя - сперма всё равно там)
+        # Мошонка
         scrotum = None
         if self.has_scrotum:
             scrotum = create_scrotum(
                 has_testicles=True,
-                testicle_size=self.testicle_size,
+                testicle_size=TesticleSize.LARGE,
                 is_internal=self.internal_testicles,
-                scrotum_type=self.scrotum_type
+                scrotum_type=self._get_scrotum_type()
             )
             self.scrotums.append(scrotum)
         
-        # Создаем пенисы с привязкой к мошонке
+        # Пенис
+        length = self.penis_size or (self._get_random_size("penis_length") * 1.2)  # +20% для фут
+        girth = self.penis_girth or self._get_random_size("penis_girth")
+        
         for i in range(self.penis_count):
             penis = create_penis(
-                name=f"penis_{i}",
-                base_length=self.penis_size,
-                base_girth=self.penis_girth,
-                penis_type=self.penis_type,
-                scrotum=scrotum  # Связь с хранилищем спермы
+                penis_type=self._get_penis_type(),
+                base_length=length,
+                base_girth=girth,
+                scrotum=scrotum
             )
             self.penises.append(penis)
         
-        # Создаем влагалища
+        # Влагалище (за пенисом/мошонкой)
+        depth = self.vagina_depth or self._get_random_size("vagina_depth")
         for i in range(self.vagina_count):
-            self.vaginas.append(Vagina(
-                name=f"vagina_{i}",
-                base_depth=self.vagina_depth,
-                base_width=self.vagina_width,
-                vagina_type=self.vagina_type
+            self.vaginas.append(create_vagina(
+                vagina_type=self._get_vagina_type(),
+                base_depth=depth
             ))
         
-        # Создаем клиторы
-        for i in range(self.clitoris_count):
-            enlargement = 2.0 if self.clitoris_enlarged else 1.0
+        # Клитор (обычно увеличен у фут)
+        for i in range(self.vagina_count):  # Обычно 1 на влагалище
             self.clitorises.append(Clitoris(
                 name=f"clitoris_{i}",
-                base_length=self.clitoris_size,
-                is_enlarged=self.clitoris_enlarged,
-                enlargement_ratio=enlargement
+                base_length=2.5,  # Больше чем у обычной женщины
+                is_enlarged=True,
+                enlargement_ratio=1.5
             ))
     
     def _setup_breasts(self) -> None:
-        cup = CupSize[self.breast_cup.upper()]
-        breasts = []
-        labels = []
+        if self.breast_cup:
+            cup = CupSize[self.breast_cup.upper()]
+        else:
+            # Футы обычно с крупной грудью
+            options = [CupSize.D, CupSize.E, CupSize.F]
+            cup = random.choice(options)
         
-        for i in range(self.breast_count):
-            nipple = Nipple(base_length=0.6, base_width=0.8, color=Color.LIGHT_PINK)
-            areola = Areola(base_diameter=4.0, nipples=[nipple], color=Color.LIGHT_PINK)
-            breast = Breast(cup=cup, areola=areola, base_elasticity=1.0)
-            breasts.append(breast)
-            labels.append(f"B{i}")
-        breasts_row = [breasts]
-        labels_row = [labels]
-        self.breast_grid = BreastGrid(rows=breasts_row, labels=[labels])
+        breasts = [self._create_breast(cup, f"B{i}") for i in range(self.breast_count)]
+        self.breast_grid = BreastGrid(rows=[breasts], labels=[[f"B{i+1}" for i in range(self.breast_count)]])
         
-    
     def _setup_uterus(self):
         """Создать матку с трубами и яичниками."""
         self.uterus_system = UterusSystem()

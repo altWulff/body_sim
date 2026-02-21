@@ -46,6 +46,136 @@ def _get_uterus_renderer():
         return None
 
 
+try:
+    from body_sim.appearance import Appearance, Race, EyeType, EarType, TailType, WingType
+    from body_sim.appearance.renderer import AppearanceRenderer
+    APPEARANCE_AVAILABLE = True
+except ImportError:
+    APPEARANCE_AVAILABLE = False
+
+# ======================
+# APPEARANCE RENDERING
+# ======================
+
+RACE_EMOJIS = {
+    "human": "👤",
+    "elf": "🧝",
+    "dark_elf": "🧝‍♀️",
+    "orc": "👹",
+    "dwarf": "🧔",
+    "demon": "😈",
+    "angel": "👼",
+    "vampire": "🧛",
+    "catgirl": "🐱",
+    "foxgirl": "🦊",
+    "wolfgirl": "🐺",
+    "bunnygirl": "🐰",
+    "dragon": "🐲",
+    "slime": "💧",
+    "cyborg": "🤖",
+}
+
+def render_appearance_compact(body) -> Optional[Panel]:
+    """Компактный рендер внешности."""
+    if not APPEARANCE_AVAILABLE or not hasattr(body, 'appearance') or not body.appearance:
+        return None
+    
+    app = body.appearance
+    race_emoji = RACE_EMOJIS.get(app.race.value, "👤")
+    
+    # Основная информация
+    lines = [
+        f"{race_emoji} {app.race.value.upper()} | {app.height:.0f}cm | {app.build}"
+    ]
+    
+    # Глаза
+    if app.eyes:
+        eye = app.eyes[0]  # Первый глаз
+        eye_emoji = "👁️"
+        if eye.eye_type == EyeType.SLIT:
+            eye_emoji = "🐱"
+        elif eye.eye_type == EyeType.GLOWING:
+            eye_emoji = "✨"
+        elif len(app.eyes) > 2:
+            eye_emoji = "👁️"
+        
+        glow = "✨" if eye.glow_intensity > 0.3 else ""
+        lines.append(f"{eye_emoji} Eyes: {eye.color.value}{glow} ({eye.eye_type.value})")
+    
+    # Уши
+    if app.ears:
+        ear = app.ears[0]
+        ear_emojis = {
+            EarType.HUMAN: "👂",
+            EarType.CAT: "🐱",
+            EarType.FOX: "🦊",
+            EarType.WOLF: "🐺",
+            EarType.RABBIT: "🐰",
+            EarType.POINTED: "🧝",
+            EarType.DRAGON: "🐲",
+        }
+        ear_emoji = ear_emojis.get(ear.ear_type, "👂")
+        if ear.mobility > 0.5:
+            ear_emoji += "↔️"
+        lines.append(f"{ear_emoji} Ears: {ear.ear_type.value}")
+    
+    # Волосы
+    if app.hair:
+        hair_emoji = "💇"
+        if app.hair.hair_type.value == "fur":
+            hair_emoji = "🦁"
+        elif app.hair.hair_type.value == "slime":
+            hair_emoji = "💧"
+        lines.append(f"{hair_emoji} Hair: {app.hair.color.value} {app.hair.style.value}")
+    
+    # Особенности
+    features = []
+    if app.horns:
+        features.append(f"🦄 Рога x{len(app.horns)}")
+    if app.tail.tail_type != TailType.NONE:
+        features.append(f"🦎 Хвост ({app.tail.tail_type.value})")
+    if app.wings.wing_type != WingType.NONE:
+        features.append(f"🪶 Крылья ({app.wings.wing_type.value})")
+    if app.face.has_fangs:
+        features.append("🦷 Клыки")
+    
+    if features:
+        lines.append(" | ".join(features))
+    
+    # Кожа/покров
+    skin_emoji = "✋"
+    if app.skin.texture.value == "furry":
+        skin_emoji = "🦁"
+    elif app.skin.texture.value == "scaly":
+        skin_emoji = "🐲"
+    elif app.skin.texture.value == "slimy":
+        skin_emoji = "💧"
+    lines.append(f"{skin_emoji} Skin: {app.skin.texture.value}")
+    
+    return Panel(
+        "\\n".join(lines),
+        title="[bold cyan]Appearance[/bold cyan]",
+        border_style="cyan",
+        box=box.SIMPLE,
+        padding=(0, 1)
+    )
+
+
+def render_appearance_detailed(body) -> Optional[Panel]:
+    """Детальный рендер внешности через AppearanceRenderer."""
+    if not APPEARANCE_AVAILABLE or not hasattr(body, 'appearance') or not body.appearance:
+        return None
+    
+    if APPEARANCE_AVAILABLE:
+        try:
+            renderer = AppearanceRenderer()
+            return renderer.render(body.appearance)
+        except:
+            pass
+    
+    return render_appearance_compact(body)
+
+
 # ======================
 # COLORS & STYLES
 # ======================
@@ -337,13 +467,18 @@ def render_uterus_section(body) -> Optional[Panel]:
 # ======================
 
 def render_full_body(body, show_breasts: bool = True, show_genitals: bool = True, 
-                     show_uterus: bool = True, compact: bool = False) -> RenderableType:
+                     show_uterus: bool = True, compact: bool = False, show_appearance: bool = True) -> RenderableType:
     """Компактное полное отображение тела."""
     has_breasts = show_breasts and body.has_breasts
     has_genitals = show_genitals and (body.has_penis or body.has_vagina)
     has_uterus = show_uterus and hasattr(body, 'uterus_system') and body.uterus_system
     
     sections = []
+    if show_appearance:
+        appearance = render_appearance_compact(body)
+        if appearance:
+            sections.append(appearance)
+
     sections.append(render_body_header(body))
     
     if has_breasts:
@@ -356,6 +491,7 @@ def render_full_body(body, show_breasts: bool = True, show_genitals: bool = True
         uterus = render_uterus_section(body)
         if uterus:
             sections.append(uterus)
+
     
     return Panel(
         Group(*sections),

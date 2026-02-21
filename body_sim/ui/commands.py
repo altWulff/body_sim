@@ -1838,6 +1838,437 @@ def cmd_vagina(args: List[str], ctx: CommandContext):
         console.print("  [cyan]list[/cyan]               - List all vaginas")
 
 
+# ============ APPEARANCE COMMANDS ============
+
+def cmd_appearance(args: List[str], ctx: CommandContext):
+    """Показать или изменить внешность: appearance [action] [args...]"""
+    if not ctx.active_body:
+        console.print("[red]No body selected[/red]")
+        return
+    
+    # Проверяем наличие appearance
+    if not hasattr(ctx.active_body, 'appearance') or not ctx.active_body.appearance:
+        console.print("[yellow]Body has no appearance system. Initializing...[/yellow]")
+        try:
+            from body_sim.appearance import Appearance, Race
+            # Определяем расу по телу
+            race = Race.HUMAN
+            if hasattr(ctx.active_body, 'sex'):
+                if ctx.active_body.sex.value == "futa":
+                    race = Race.HUMAN  # По умолчанию для futa
+            ctx.active_body.appearance = Appearance(race=race)
+            console.print(f"[green]Appearance initialized: {race.value}[/green]")
+        except ImportError:
+            console.print("[red]Appearance system not available[/red]")
+            return
+    
+    app = ctx.active_body.appearance
+    
+    if not args:
+        # Показать текущую внешность
+        from body_sim.ui.rich_render import render_appearance_compact, render_appearance_detailed
+        compact = render_appearance_compact(ctx.active_body)
+        if compact:
+            console.print(compact)
+        else:
+            console.print("[dim]No appearance data[/dim]")
+        return
+    
+    action = args[0].lower()
+    action_args = args[1:]
+    
+    # === RACE ===
+    if action == "race":
+        if not action_args:
+            console.print(f"[cyan]Current race: {app.race.value}[/cyan]")
+            console.print("[dim]Available races: human, elf, dark_elf, orc, dwarf, demon, angel, vampire,")
+            console.print("                   catgirl, foxgirl, wolfgirl, bunnygirl, dragon, slime, cyborg[/dim]")
+            return
+        
+        try:
+            from body_sim.appearance import Race
+            new_race = Race[action_args[0].upper()]
+            old_race = app.race
+            app.transform_race(new_race)
+            console.print(f"[bold green]✓ Race changed: {old_race.value} → {new_race.value}[/bold green]")
+            
+            # Показываем изменения
+            if app.horns:
+                console.print(f"[cyan]  + Horns: {len(app.horns)}[/cyan]")
+            if app.tail.tail_type.value != "none":
+                console.print(f"[cyan]  + Tail: {app.tail.tail_type.value}[/cyan]")
+            if app.wings.wing_type.value != "none":
+                console.print(f"[cyan]  + Wings: {app.wings.wing_type.value}[/cyan]")
+                
+        except KeyError:
+            console.print(f"[red]Unknown race: {action_args[0]}[/red]")
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+    
+    # === HEIGHT ===
+    elif action == "height":
+        if action_args:
+            try:
+                new_height = float(action_args[0])
+                old_height = app.height
+                app.height = new_height
+                console.print(f"[green]Height: {old_height}cm → {new_height}cm[/green]")
+            except ValueError:
+                console.print("[red]Invalid height value[/red]")
+        else:
+            console.print(f"[cyan]Height: {app.height}cm[/cyan]")
+    
+    # === BUILD ===
+    elif action == "build":
+        if action_args:
+            build = action_args[0].lower()
+            valid_builds = ["petite", "slender", "average", "athletic", "muscular", "heavy"]
+            if build in valid_builds:
+                app.build = build
+                console.print(f"[green]Build set to: {build}[/green]")
+            else:
+                console.print(f"[red]Invalid build. Valid: {', '.join(valid_builds)}[/red]")
+        else:
+            console.print(f"[cyan]Build: {app.build}[/cyan]")
+    
+    # === EYES ===
+    elif action == "eyes":
+        _cmd_eyes(action_args, app)
+    
+    # === EARS ===
+    elif action == "ears":
+        _cmd_ears(action_args, app)
+    
+    # === HAIR ===
+    elif action == "hair":
+        _cmd_hair(action_args, app)
+    
+    # === TAIL ===
+    elif action == "tail":
+        _cmd_tail(action_args, app)
+    
+    # === WINGS ===
+    elif action == "wings":
+        _cmd_wings(action_args, app)
+    
+    # === HORNS ===
+    elif action == "horns":
+        _cmd_horns(action_args, app)
+    
+    # === SKIN ===
+    elif action == "skin":
+        _cmd_skin(action_args, app)
+    
+    # === DETAILED ===
+    elif action == "full" or action == "detailed":
+        from body_sim.ui.rich_render import render_appearance_detailed
+        detailed = render_appearance_detailed(ctx.active_body)
+        if detailed:
+            console.print(detailed)
+    
+    else:
+        console.print(f"[red]Unknown appearance action: {action}[/red]")
+        console.print("[dim]Actions: race, height, build, eyes, ears, hair, tail, wings, horns, skin, full[/dim]")
+
+
+def _cmd_eyes(args: List[str], app):
+    """Управление глазами."""
+    from body_sim.appearance import EyeType, EyeColor
+    
+    if not args:
+        # Показать статус
+        console.print(f"[cyan]Eyes ({len(app.eyes)}):[/cyan]")
+        for i, eye in enumerate(app.eyes):
+            glow = " (glowing)" if eye.glow_intensity > 0 else ""
+            console.print(f"  [{i}] {eye.color.value} {eye.eye_type.value}{glow}")
+        return
+    
+    action = args[0].lower()
+    
+    if action == "add":
+        # Добавить глаз
+        eye_type = EyeType[args[1].upper()] if len(args) > 1 else EyeType.HUMAN
+        color = EyeColor[args[2].upper()] if len(args) > 2 else EyeColor.BLUE
+        app.add_eye(eye_type, color)
+        console.print(f"[green]Added eye: {color.value} {eye_type.value}[/green]")
+        console.print(f"[dim]Total eyes: {len(app.eyes)}[/dim]")
+    
+    elif action == "remove":
+        idx = int(args[1]) if len(args) > 1 else -1
+        if app.remove_eye(idx):
+            console.print(f"[yellow]Removed eye #{idx}[/yellow]")
+        else:
+            console.print("[red]Cannot remove eye (need at least 1)[/red]")
+    
+    elif action == "color":
+        try:
+            color = EyeColor[args[1].upper()]
+            for eye in app.eyes:
+                eye.color = color
+            console.print(f"[green]All eyes changed to {color.value}[/green]")
+        except KeyError:
+            console.print("[red]Invalid color[/red]")
+    
+    elif action == "type":
+        try:
+            eye_type = EyeType[args[1].upper()]
+            for eye in app.eyes:
+                eye.eye_type = eye_type
+            console.print(f"[green]All eyes changed to {eye_type.value}[/green]")
+        except KeyError:
+            console.print("[red]Invalid eye type[/red]")
+    
+    elif action == "heterochromia":
+        if len(app.eyes) >= 2:
+            try:
+                color1 = EyeColor[args[1].upper()]
+                color2 = EyeColor[args[2].upper()]
+                app.set_heterochromia(color1, color2)
+                console.print(f"[green]Heterochromia set: {color1.value} / {color2.value}[/green]")
+            except (KeyError, IndexError):
+                console.print("[red]Usage: eyes heterochromia <color1> <color2>[/red]")
+        else:
+            console.print("[red]Need at least 2 eyes for heterochromia[/red]")
+
+
+def _cmd_ears(args: List[str], app):
+    """Управление ушами."""
+    from body_sim.appearance import EarType
+    
+    if not args:
+        console.print(f"[cyan]Ears ({len(app.ears)}):[/cyan]")
+        for i, ear in enumerate(app.ears):
+            mobile = " (mobile)" if ear.mobility > 0.5 else ""
+            console.print(f"  [{i}] {ear.ear_type.value}{mobile}")
+        return
+    
+    action = args[0].lower()
+    
+    if action == "type":
+        try:
+            ear_type = EarType[args[1].upper()]
+            for ear in app.ears:
+                ear.ear_type = ear_type
+            console.print(f"[green]Ears changed to {ear_type.value}[/green]")
+        except KeyError:
+            console.print("[red]Invalid ear type[/red]")
+    
+    elif action == "twitch":
+        for ear in app.ears:
+            ear.twitch()
+        console.print("[yellow]Ears twitched!✨[/yellow]")
+    
+    elif action == "perk":
+        for ear in app.ears:
+            ear.perk_up()
+        console.print("[green]Ears perked up!✨[/green]")
+    
+    elif action == "flatten":
+        for ear in app.ears:
+            ear.flatten()
+        console.print("[red]Ears flattened (fear/aggression)[/red]")
+
+
+def _cmd_hair(args: List[str], app):
+    """Управление волосами."""
+    from body_sim.appearance import HairColor, HairStyle, HairType
+    
+    if not args:
+        h = app.hair
+        console.print(f"[cyan]Hair: {h.color.value} {h.style.value} ({h.hair_type.value})[/cyan]")
+        console.print(f"[dim]Length: {h.length}cm | Volume: {h.volume:.1f}[/dim]")
+        return
+    
+    action = args[0].lower()
+    
+    if action == "color":
+        try:
+            color = HairColor[args[1].upper()]
+            app.hair.dye(color)
+            console.print(f"[green]Hair dyed {color.value}[/green]")
+        except KeyError:
+            console.print("[red]Invalid color[/red]")
+    
+    elif action == "style":
+        try:
+            style = HairStyle[args[1].upper()]
+            app.hair.style = style
+            console.print(f"[green]Hair styled: {style.value}[/green]")
+        except KeyError:
+            console.print("[red]Invalid style[/red]")
+    
+    elif action == "type":
+        try:
+            htype = HairType[args[1].upper()]
+            app.hair.hair_type = htype
+            console.print(f"[green]Hair type: {htype.value}[/green]")
+        except KeyError:
+            console.print("[red]Invalid hair type[/red]")
+    
+    elif action == "cut":
+        try:
+            length = float(args[1])
+            app.hair.cut(length)
+            console.print(f"[yellow]Hair cut to {length}cm[/yellow]")
+        except ValueError:
+            console.print("[red]Invalid length[/red]")
+
+
+def _cmd_tail(args: List[str], app):
+    """Управление хвостом."""
+    from body_sim.appearance import TailType
+    
+    if not args:
+        t = app.tail
+        if t.tail_type == TailType.NONE:
+            console.print("[dim]No tail[/dim]")
+        else:
+            console.print(f"[cyan]Tail: {t.tail_type.value} ({t.length}cm)[/cyan]")
+            console.print(f"[dim]Fluffiness: {t.fluffiness:.1f} | Prehensile: {t.prehensile}[/dim]")
+        return
+    
+    action = args[0].lower()
+    
+    if action == "type":
+        try:
+            tail_type = TailType[args[1].upper()]
+            app.tail.tail_type = tail_type
+            if tail_type != TailType.NONE:
+                app.tail.length = 50  # Default length
+            console.print(f"[green]Tail set to {tail_type.value}[/green]")
+        except KeyError:
+            console.print("[red]Invalid tail type[/red]")
+    
+    elif action == "wag":
+        intensity = float(args[1]) if len(args) > 1 else 0.5
+        result = app.tail.wag(intensity)
+        console.print(f"[yellow]{result}[/yellow]")
+    
+    elif action == "lash":
+        result = app.tail.lash()
+        console.print(f"[red]{result}[/red]")
+
+
+def _cmd_wings(args: List[str], app):
+    """Управление крыльями."""
+    from body_sim.appearance import WingType
+    
+    if not args:
+        w = app.wings
+        if w.wing_type == WingType.NONE:
+            console.print("[dim]No wings[/dim]")
+        else:
+            status = "hidden" if w.is_hidden else "visible"
+            fly = "can fly" if w.can_fly else "cannot fly"
+            console.print(f"[cyan]Wings: {w.wing_type.value} ({status}, {fly})[/cyan]")
+        return
+    
+    action = args[0].lower()
+    
+    if action == "type":
+        try:
+            wing_type = WingType[args[1].upper()]
+            app.wings.wing_type = wing_type
+            if wing_type != WingType.NONE:
+                app.wings.span = 300
+                app.wings.can_fly = True
+            console.print(f"[green]Wings set to {wing_type.value}[/green]")
+        except KeyError:
+            console.print("[red]Invalid wing type[/red]")
+    
+    elif action == "unfold":
+        app.wings.unfold()
+        console.print("[cyan]🪶 Wings unfolded![/cyan]")
+    
+    elif action == "fold":
+        app.wings.fold()
+        console.print("[dim]🪶 Wings folded[/dim]")
+    
+    elif action == "damage":
+        amount = float(args[1]) if len(args) > 1 else 0.3
+        app.wings.damage(amount)
+        console.print(f"[red]Wings damaged ({app.wings.condition:.0%} condition)[/red]")
+
+
+def _cmd_horns(args: List[str], app):
+    """Управление рогами."""
+    from body_sim.appearance import HornType, Horn
+    
+    if not args:
+        if not app.horns:
+            console.print("[dim]No horns[/dim]")
+        else:
+            console.print(f"[cyan]Horns ({len(app.horns)}):[/cyan]")
+            for i, h in enumerate(app.horns):
+                console.print(f"  [{i}] {h.horn_type.value} ({h.length}cm)")
+        return
+    
+    action = args[0].lower()
+    
+    if action == "add":
+        try:
+            horn_type = HornType[args[1].upper()] if len(args) > 1 else HornType.DEMON_CURVED
+            length = float(args[2]) if len(args) > 2 else 15.0
+            horn = Horn(horn_type=horn_type, length=length)
+            app.horns.append(horn)
+            console.print(f"[green]Added {horn_type.value} horn ({length}cm)[/green]")
+        except KeyError:
+            console.print("[red]Invalid horn type[/red]")
+    
+    elif action == "remove":
+        if app.horns:
+            app.horns.pop()
+            console.print("[yellow]Removed last horn[/yellow]")
+        else:
+            console.print("[red]No horns to remove[/red]")
+    
+    elif action == "grow":
+        amount = float(args[1]) if len(args) > 1 else 5.0
+        for horn in app.horns:
+            horn.grow(amount)
+        console.print(f"[green]Horns grew by {amount}cm[/green]")
+    
+    elif action == "break":
+        for horn in app.horns:
+            horn.break_horns()
+        console.print("[red]💥 Horns broken![/red]")
+
+
+def _cmd_skin(args: List[str], app):
+    """Управление кожей/покровом."""
+    from body_sim.appearance import SkinTexture
+    
+    if not args:
+        s = app.skin
+        console.print(f"[cyan]Skin: {s.texture.value} ({s.base_color})[/cyan]")
+        if s.markings:
+            console.print(f"[dim]Markings: {', '.join(s.markings)}[/dim]")
+        if s.scars:
+            console.print(f"[dim]Scars: {len(s.scars)}[/dim]")
+        return
+    
+    action = args[0].lower()
+    
+    if action == "texture":
+        try:
+            texture = SkinTexture[args[1].upper()]
+            app.skin.change_texture(texture)
+            console.print(f"[green]Skin texture: {texture.value}[/green]")
+        except KeyError:
+            console.print("[red]Invalid texture[/red]")
+    
+    elif action == "color":
+        color = args[1] if len(args) > 1 else "#F5DEB3"
+        app.skin.base_color = color
+        console.print(f"[green]Skin color: {color}[/green]")
+    
+    elif action == "scar":
+        location = args[1] if len(args) > 1 else "face"
+        severity = float(args[2]) if len(args) > 2 else 0.5
+        app.skin.add_scar(location, severity)
+        console.print(f"[yellow]Added scar on {location} (severity: {severity})[/yellow]")
+
+
 #============ MAGIC COMMAND HANDLERS ============
 
 def cmd_cast(args: List[str], ctx: CommandContext):
@@ -2190,6 +2621,14 @@ def create_registry() -> CommandRegistry:
         "penis_type <type> [index]", 
         cmd_penis_type, 
         "genitals"
+    ))
+
+    registry.register(Command(
+        "appearance", ["app", "look"],
+        "Show/change appearance",
+        "appearance [race|eyes|ears|hair|tail|wings|horns|skin|full]",
+        cmd_appearance,
+        "appearance"
     ))
 
     # Реакции (если доступны)
