@@ -13,6 +13,25 @@ from rich import box
 from body_sim.anatomy.genitals import Penis
 
 
+try:
+    from magic import (
+        MagicRenderer, 
+        FluidRegenerationPerk, 
+        OverfillCapacityPerk,
+        PressureMasteryPerk, 
+        SensitiveOrgansPerk,
+        MilkSpray, LactationHeal, BreastShield,
+        CumShot, VirilityBoost, SemenWeb,
+        DualRelease, GenderFusion
+    )
+    from magic.skills.milk_skills import get_female_skills
+    from magic.skills.cum_skills import get_male_skills
+    from magic.skills.hybrid_skills import get_futanari_skills
+    MAGIC_AVAILABLE = True
+except ImportError as e:
+    MAGIC_AVAILABLE = False
+    print(f"[dim]Magic system not available: {e}[/dim]")
+
 console = Console()
 
 
@@ -430,6 +449,27 @@ def cmd_help(args: List[str], ctx: CommandContext):
   > cuse 1 Roxy         # Использовать скилл 1 на Roxy
   > cskip               # Пропустить ход
         """,
+        "magic": """
+[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
+[bold cyan]║                    MAGIC SYSTEM                              ║[/bold cyan]
+[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
+
+[bold yellow]COMMANDS[/bold yellow]
+  cast <skill> [target] [organ]  - Cast spell using fluids
+  mana, m                        - Show fluid levels (mana)
+  skills, sk                     - Show available skills
+  perks                          - Show active perks
+  learn <Class>                  - Learn new skill
+  add_perk <type> [organ]        - Add passive perk
+  magic_help, mhelp              - This help
+
+[bold yellow]SCHOOLS[/bold yellow]
+  [white]MILK[/white] (Breasts) - Healing & shields
+  [yellow]CUM[/yellow] (Penis)   - Damage & buffs  
+  [purple]HYBRID[/purple]        - Futanari only
+
+Use [cyan]help[/cyan] without args to see all command categories.
+""",
     }
 
     if topic in help_topics:
@@ -1796,7 +1836,284 @@ def cmd_vagina(args: List[str], ctx: CommandContext):
         console.print("  [cyan]deflate [idx][/cyan]")
         console.print("  [cyan]penetration [idx][/cyan]  - Show inserted objects")
         console.print("  [cyan]list[/cyan]               - List all vaginas")
+
+
+#============ MAGIC COMMAND HANDLERS ============
+
+def cmd_cast(args: List[str], ctx: CommandContext):
+    """Использовать магический скилл: cast <skill_name> [target_idx] [target_organ]"""
+    if not MAGIC_AVAILABLE:
+        console.print("[red]Magic system not available[/red]")
+        return
+    
+    if not ctx.active_body:
+        console.print("[red]No active body[/red]")
+        return
+    
+    if len(args) < 1:
+        console.print("[red]Usage: cast <skill_name> [target_idx] [organ][/red]")
+        console.print("[dim]Example: cast 'Milk Spray' 1[/dim]")
+        console.print("[dim]Example: cast 'Cum Shot' 0 vagina[/dim]")
+        return
+    
+    skill_name = args[0]
+    target_idx = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
+    target_organ = args[2] if len(args) > 2 else None
+    
+    # Получаем цель
+    target = None
+    if target_idx is not None and 0 <= target_idx < len(ctx.bodies):
+        target = ctx.bodies[target_idx]
+    
+    # Проверяем инициализацию магии
+    if not hasattr(ctx.active_body, 'skill_book'):
+        console.print("[red]Active body has no magic system initialized[/red]")
+        console.print("[dim]Hint: Use body.init_magic() first[/dim]")
+        return
+    
+    # Используем скилл
+    result = ctx.active_body.cast_spell(skill_name, target, target_organ=target_organ)
+    
+    # Отображаем результат
+    renderer = MagicRenderer(ctx.active_body)
+    console.print(renderer.render_casting_result(result))
+    
+    # Если успех и есть эффекты - показываем детали
+    if result.get("success"):
+        for effect in result.get("results", []):
+            if effect.get("type") == "damage" and target:
+                console.print(f"[red]💥 {target.name} takes {effect.get('value', 0):.1f} damage![/red]")
+            elif effect.get("type") == "heal":
+                console.print(f"[green]💚 Healed for {effect.get('amount', 0):.1f} HP[/green]")
+            elif effect.get("type") == "fill":
+                console.print(f"[blue]💧 Filled {effect.get('organ', 'organ')} with {effect.get('amount', 0):.1f}ml[/blue]")
+
+
+def cmd_skills(args: List[str], ctx: CommandContext):
+    """Показать доступные магические скиллы"""
+    if not MAGIC_AVAILABLE:
+        console.print("[red]Magic system not available[/red]")
+        return
+    
+    if not ctx.active_body:
+        console.print("[red]No active body[/red]")
+        return
+    
+    if not hasattr(ctx.active_body, 'skill_book'):
+        console.print("[red]Active body has no magic system[/red]")
+        return
+    
+    renderer = MagicRenderer(ctx.active_body)
+    console.print(renderer.render_skill_book())
+    
+    # Показываем combo-возможности если есть история
+    history = ctx.active_body.skill_book.skill_history[-3:]
+    if history:
+        console.print(f"\\n[dim]Recent casts: {' → '.join(history)}[/dim]")
+
+
+def cmd_mana(args: List[str], ctx: CommandContext):
+    """Показать статус маны (жидкостей в органах)"""
+    if not MAGIC_AVAILABLE:
+        console.print("[red]Magic system not available[/red]")
+        return
+    
+    if not ctx.active_body:
+        console.print("[red]No active body[/red]")
+        return
+    
+    if not hasattr(ctx.active_body, 'get_mana_status'):
+        console.print("[red]Active body has no mana system[/red]")
+        return
+    
+    renderer = MagicRenderer(ctx.active_body)
+    console.print(renderer.render_mana_status())
+    
+    # Дополнительная информация о магической силе
+    if hasattr(ctx.active_body, 'magic_power'):
+        power = ctx.active_body.magic_power
+        color = "green" if power > 1.0 else "white"
+        console.print(f"\\n[{color}]Magic Power: {power:.2f}x[/{color}]")
+
+
+def cmd_perks(args: List[str], ctx: CommandContext):
+    """Показать активные перки"""
+    if not MAGIC_AVAILABLE:
+        console.print("[red]Magic system not available[/red]")
+        return
+    
+    if not ctx.active_body:
+        console.print("[red]No active body[/red]")
+        return
+    
+    renderer = MagicRenderer(ctx.active_body)
+    console.print(renderer.render_perks())
+
+
+def cmd_learn(args: List[str], ctx: CommandContext):
+    """Выучить новый скилл: learn <skill_class>"""
+    if not MAGIC_AVAILABLE:
+        console.print("[red]Magic system not available[/red]")
+        return
+    
+    if not ctx.active_body:
+        console.print("[red]No active body[/red]")
+        return
+    
+    if len(args) < 1:
+        console.print("[red]Usage: learn <SkillClassName>[/red]")
+        console.print("[dim]Available:[/dim]")
+        console.print("  [cyan]MilkSpray[/cyan], [cyan]LactationHeal[/cyan], [cyan]BreastShield[/cyan]")
+        console.print("  [cyan]CumShot[/cyan], [cyan]VirilityBoost[/cyan], [cyan]SemenWeb[/cyan]")
+        console.print("  [cyan]DualRelease[/cyan], [cyan]GenderFusion[/cyan]")
+        return
+    
+    skill_class = args[0]
+    
+    # Карта доступных скиллов
+    skill_map = {
+        "MilkSpray": MilkSpray,
+        "LactationHeal": LactationHeal,
+        "BreastShield": BreastShield,
+        "CumShot": CumShot,
+        "VirilityBoost": VirilityBoost,
+        "SemenWeb": SemenWeb,
+        "DualRelease": DualRelease,
+        "GenderFusion": GenderFusion,
+    }
+    
+    if skill_class not in skill_map:
+        console.print(f"[red]Unknown skill class: {skill_class}[/red]")
+        return
+    
+    try:
+        skill = skill_map[skill_class]()
+        ctx.active_body.skill_book.add_skill(skill)
+        console.print(f"[green]✓ Learned: {skill.name}[/green]")
+        console.print(f"[dim]{skill.description}[/dim]")
+    except Exception as e:
+        console.print(f"[red]Error learning skill: {e}[/red]")
+
+
+def cmd_add_perk(args: List[str], ctx: CommandContext):
+    """Добавить перк: add_perk <perk_type> [organ]"""
+    if not MAGIC_AVAILABLE:
+        console.print("[red]Magic system not available[/red]")
+        return
+    
+    if not ctx.active_body:
+        console.print("[red]No active body[/red]")
+        return
+    
+    if len(args) < 1:
+        console.print("[red]Usage: add_perk <type> [organ][/red]")
+        console.print("[dim]Types:[/dim]")
+        console.print("  [cyan]regen[/cyan] <organ>  - Fluid regeneration")
+        console.print("  [cyan]expand[/cyan] <organ> - Increase capacity")
+        console.print("  [cyan]pressure[/cyan]       - Reduce skill costs")
+        console.print("  [cyan]sensitive[/cyan> <organ> - Power boost when full")
+        console.print("[dim]Organs: breasts, uterus, penis, testicles[/dim]")
+        return
+    
+    perk_type = args[0].lower()
+    organ = args[1] if len(args) > 1 else None
+    
+    try:
+        from body_sim.core.enums import FluidType
         
+        perk = None
+        if perk_type == "regen":
+            if not organ:
+                console.print("[red]Specify organ for regen perk[/red]")
+                return
+            fluid = FluidType.MILK if organ in ["breasts", "uterus"] else FluidType.CUM
+            perk = FluidRegenerationPerk(organ, fluid, 5.0)
+        elif perk_type == "expand":
+            if not organ:
+                console.print("[red]Specify organ for expand perk[/red]")
+                return
+            perk = OverfillCapacityPerk(organ, 0.2)
+        elif perk_type == "pressure":
+            perk = PressureMasteryPerk()
+        elif perk_type == "sensitive":
+            if not organ:
+                console.print("[red]Specify organ for sensitive perk[/red]")
+                return
+            perk = SensitiveOrgansPerk(organ)
+        else:
+            console.print(f"[red]Unknown perk type: {perk_type}[/red]")
+            return
+        
+        if perk:
+            perk.apply_to(ctx.active_body)
+            ctx.active_body.skill_book.passive_perks.append(perk)
+            console.print(f"[green]✓ Gained perk: {perk.name}[/green]")
+            console.print(f"[dim]{perk.description}[/dim]")
+            
+    except Exception as e:
+        console.print(f"[red]Error adding perk: {e}[/red]")
+
+
+def cmd_magic_help(args: List[str], ctx: CommandContext):
+    """Показать справку по магической системе"""
+    help_text = """
+[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
+[bold cyan]║                    MAGIC SYSTEM HELP                         ║[/bold cyan]
+[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
+
+[bold yellow]🎆 MAGIC COMMANDS[/bold yellow]
+
+  [green]cast[/green] <skill> [target] [organ]
+                            - Cast a spell using body fluids as mana
+                            Example: cast "Milk Spray" 0
+                            Example: cast "Cum Shot" 1 vagina
+  
+  [green]mana[/green]                     - Show mana status (fluids in all organs)
+                            Displays: breasts, uterus, penis, testicles
+  
+  [green]skills[/green]                   - List all learned skills with costs
+                            Shows cooldowns and availability
+  
+  [green]perks[/green]                    - Show active passive perks
+  
+  [green]learn[/green] <SkillClass>       - Learn new skill
+                            Example: learn MilkSpray
+  
+  [green]add_perk[/green] <type> [organ]   - Add passive perk
+                            Example: add_perk regen breasts
+                            Example: add_perk expand penis
+
+[bold yellow]💧 MANA SYSTEM[/bold yellow]
+
+Each organ with fluid capacity is a mana source:
+• [white]Breasts[/white] (Milk)  - White color, healing/defensive magic
+• [yellow]Penis[/yellow] (Cum)   - Yellow color, offensive/summoning magic  
+• [cyan]Uterus[/cyan] (Any)   - Cyan color, universal source
+• [gold]Testicles[/gold] (Cum) - Gold color, high capacity
+
+[bold]Overload Bonus:[/bold] Casting at >90% fullness gives 50% power boost!
+
+[bold yellow]⚡ COMBO SYSTEM[/bold yellow]
+
+Certain skills create combos when cast in sequence:
+• Milk Spray → Colostrum Surge → Milk Explosion (AoE)
+• Cum Shot ×3 → Cum Meteor (Ultimate)
+• Dual Release available only for Futanari
+
+[bold yellow]🎓 SKILL SCHOOLS[/bold yellow]
+
+  [white]MILK[/white]     - Healing, shields, control (Female)
+  [yellow]CUM[/yellow]      - Damage, buffs, summons (Male)
+  [purple]HYBRID[/purple]   - Combined effects (Futanari only)
+
+[bold yellow]💎 PERK TYPES[/bold yellow]
+
+  [green]regen[/green]      - Passive fluid regeneration (+5ml/tick per rank)
+  [green]expand[/green]     - +20% max volume per rank
+  [green]pressure[/green]   - -20% skill cost per rank
+  [green]sensitive[/green]  - +50% power when organ >50% full
+    """
+    console.print(help_text)        
 
 # ============ Создание реестра команд ============
 

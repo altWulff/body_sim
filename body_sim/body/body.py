@@ -17,10 +17,12 @@ from body_sim.anatomy.breast import Breast
 from body_sim.anatomy.nipple import Areola, Nipple
 from body_sim.systems.grid import BreastGrid
 from body_sim.systems.penetration import CrossBodyPenetration
+from body_sim.magic import MagicMixin
+
 
 
 @dataclass
-class Body:
+class Body(MagicMixin):
     name: str = "Unnamed"
     sex: Sex = Sex.NONE
     body_type: BodyType = BodyType.AVERAGE
@@ -44,6 +46,7 @@ class Body:
         self._setup_breasts()
         if not self.anuses:
             self.anuses.append(Anus())
+        self.init_magic()
             
     def _setup_uterus(self) -> None:
         "Создание системы маток."
@@ -321,6 +324,8 @@ class Body:
         if self.breast_grid:
             from body_sim.core.fluids import FLUID_DEFS
             self.breast_grid.tick_all(FLUID_DEFS, dt)
+
+        self.magic_tick()
 
 
 @dataclass 
