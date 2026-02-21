@@ -30,7 +30,7 @@ def render_breast_status(breast: 'Breast', defs: dict, label: str = "") -> str:
         f"Pressure: {breast.pressure(defs):.2f}",
         f"Sag: {breast.sag:.3f}",
         f"Elasticity: {breast.elasticity:.2f}",
-        f"Areola: {breast.areola.diameter:.1f}cm (base: {breast.areola.base_diameter:.1f}cm)",
+        f"Areola: {abs(breast.areola.diameter):.1f}cm (base: {breast.areola.base_diameter:.1f}cm)",
         f"Nipples: {len(breast.areola.nipples)}",
     ]
     
@@ -234,7 +234,7 @@ class BreastRenderer:
         table.add_column("Param", style="cyan", width=12)
         table.add_column("Value")
         
-        table.add_row("Диаметр", f"{areola.diameter:.1f}cm / {areola.base_diameter:.1f}cm")
+        table.add_row("Диаметр", f"{abs(areola.diameter):.1f}cm / {areola.base_diameter:.1f}cm")
         table.add_row("Расширение", f"×{areola.expansion_ratio:.2f}")
         table.add_row("Чувствительность", self._bar(areola.sensitivity))
         table.add_row("Пухлость", self._bar(areola.puffiness))
@@ -252,156 +252,6 @@ class BreastRenderer:
             padding=(0, 1)
         )
     
-    # ============ НОВЫЙ МЕТОД FULLNESS КАК В UTERUS ============
-    
-    #def render_fullness(self, breast: 'Breast', title: str = "Заполнение груди") -> Panel:
-        """
-        Детальный рендер заполнения груди с распределением жидкости.
-        Аналог render_fullness из uterus_render.py
-        """
-        state = breast.state
-        emoji, color, state_desc = self._get_state_style(state)
-        cup_color = self._get_cup_color(breast.cup)
-        
-        # Получаем данные о заполнении
-        current_vol = breast.filled
-        max_vol = breast._max_volume
-        fill_pct = (current_vol / max_vol * 100) if max_vol > 0 else 0
-        
-        # Смесь жидкостей
-        mixture = getattr(breast, 'mixture', None)
-        
-        # Предметы
-        objects = []
-        if breast.insertion_manager and hasattr(breast.insertion_manager, 'inserted_objects'):
-            objects = breast.insertion_manager.inserted_objects
-        
-        # Создаём таблицу как в uterus
-        table = Table(box=box.ROUNDED, show_header=False, padding=(0, 1))
-        table.add_column("Param", style="cyan", width=18)
-        table.add_column("Value", style="white")
-        
-        # Заголовок с состоянием
-        table.add_row(
-            "[bold]СОСТОЯНИЕ[/bold]", 
-            f"[{color}]{emoji} {state_desc}[/{color}] | "
-            f"[{cup_color}]{breast.cup.name}[/{cup_color}] → {breast.dynamic_cup.name}"
-        )
-        
-        # === ОСНОВНОЕ ЗАПОЛНЕНИЕ ===
-        table.add_row("", "")
-        table.add_row("[bold cyan]💧 ОБЪЁМ[/bold cyan]", "")
-        
-        fill_bar = self._create_fluid_bar(current_vol, max_vol)
-        table.add_row(
-            "Заполнение", 
-            f"{fill_bar} {current_vol:.1f}/{max_vol:.1f}ml ({fill_pct:.0f}%)"
-        )
-        
-        # Состав жидкости
-        if mixture and hasattr(mixture, 'components') and mixture.components:
-            fluid_info = self._render_fluid_mixture(mixture)
-            table.add_row("Состав", fluid_info)
-        
-        # === ПРЕДМЕТЫ ===
-        if objects:
-            table.add_row("", "")
-            table.add_row("[bold cyan]📦 ПРЕДМЕТЫ[/bold cyan]", f"{len(objects)} шт.")
-            total_obj_volume = 0
-            for i, obj in enumerate(objects):
-                name = getattr(obj, 'name', f"Объект {i}")
-                volume = getattr(obj, 'volume', 0) or getattr(obj, 'effective_volume', 0)
-                diameter = getattr(obj, 'diameter', 0)
-                total_obj_volume += volume
-                table.add_row(
-                    f"  [{i}]",
-                    f"{name}: {volume:.1f}ml, Ø{diameter:.1f}cm"
-                )
-            table.add_row("  Объём предметов", f"{total_obj_volume:.1f}ml")
-        
-        # === СОСКИ (аналогично трубам в uterus) ===
-        if breast.areola and breast.areola.nipples:
-            table.add_row("", "")
-            table.add_row("[bold magenta]👁️ СОСКИ[/bold magenta]", f"{len(breast.areola.nipples)} шт.")
-            
-            for i, nipple in enumerate(breast.areola.nipples):
-                # Статус отверстия
-                if nipple.is_open:
-                    status = f"[blue]Ø{nipple.gape_diameter:.2f}cm[/blue] [yellow]ОТКРЫТ[/yellow]"
-                    # Если течёт
-                    if state.name == 'LEAKING':
-                        status += " [red]💧 ТЕЧЁТ[/red]"
-                else:
-                    status = "[dim]Закрыт[/dim]"
-                
-                # Растяжение
-                stretch = nipple.stretch_ratio
-                stretch_str = f" ×{stretch:.1f}" if stretch > 1.1 else ""
-                
-                table.add_row(
-                    f"  [{i}]",
-                    f"{nipple.current_length:.1f}cm{stretch_str} | {status}"
-                )
-        
-        # === АРЕОЛА ===
-        if breast.areola:
-            table.add_row("", "")
-            table.add_row("[bold yellow]🟡 АРЕОЛА[/bold yellow]", "")
-            
-            areola = breast.areola
-            areola_bar = self._create_fluid_bar(areola.diameter, areola.base_diameter * 2, 15)
-            table.add_row(
-                "  Диаметр",
-                f"{areola_bar} {areola.diameter:.1f}cm (base: {areola.base_diameter:.1f}cm)"
-            )
-            table.add_row("  Расширение", f"×{areola.expansion_ratio:.2f}")
-            table.add_row("  Чувствительность", self._bar(areola.sensitivity, width=15))
-        
-        # === ФИЗИЧЕСКИЕ ПАРАМЕТРЫ ===
-        table.add_row("", "")
-        table.add_row("[bold]⚙️ ПАРАМЕТРЫ[/bold]", "")
-        
-        # Давление
-        from body_sim.core.fluids import FLUID_DEFS
-        pressure = breast.pressure(FLUID_DEFS)
-        pressure_color = "red" if pressure > 1.0 else "yellow" if pressure > 0.5 else "green"
-        table.add_row(
-            "Давление",
-            f"[{pressure_color}]{pressure:.2f}[/] (critical: >1.0)"
-        )
-        
-        # Провисание
-        sag_bar = self._bar(breast.sag, width=15, 
-                           color_map={'high': 'red', 'medium': 'yellow', 'low': 'green'})
-        table.add_row("Провисание", f"{sag_bar} {breast.sag:.3f}")
-        
-        # Упругость
-        table.add_row("Упругость", self._bar(breast.elasticity, width=15))
-        
-        # === ЛАКТАЦИЯ ===
-        if hasattr(breast, 'lactation') and breast.lactation:
-            lact = breast.lactation
-            lact_state = getattr(lact.state, 'name', 'OFF')
-            if lact_state != 'OFF':
-                table.add_row("", "")
-                table.add_row("[bold blue]🥛 ЛАКТАЦИЯ[/bold blue]", f"[blue]{lact_state}[/blue]")
-                if hasattr(lact, 'base_rate'):
-                    table.add_row("  Потенциал", f"{lact.base_rate:.2f}ml/tick")
-        
-        # === ИНФЛЯЦИЯ ===
-        if hasattr(breast, 'inflation') and breast.inflation:
-            inf = breast.inflation
-            stretch = inf.stretch_ratio if hasattr(inf, 'stretch_ratio') else 1.0
-            if stretch > 1.1:
-                table.add_row("", "")
-                table.add_row("[bold magenta]💨 ИНФЛЯЦИЯ[/bold magenta]", f"×{stretch:.1f}")
-        
-        return Panel(
-            table, 
-            title=f"[bold]{emoji} {title}[/bold]",
-            border_style=color,
-            padding=(1, 2)
-        )
     def render_fullness(self, breast: 'Breast', title: str = "Заполнение груди") -> Panel:
         """
         Детальный рендер заполнения груди с распределением жидкости.

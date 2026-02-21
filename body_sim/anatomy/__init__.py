@@ -6,10 +6,12 @@
 from body_sim.anatomy.base import Genital
 from body_sim.anatomy.nipple import Nipple, Areola
 from body_sim.anatomy.breast import Breast
-from body_sim.anatomy.genitals import (
-    Penis, Clitoris, Vagina, Anus,
-    Testicle, Scrotum
-)
+from body_sim.anatomy.testicle import Testicle
+from body_sim.anatomy.scrotum import Scrotum
+from body_sim.anatomy.penis import Penis
+from body_sim.anatomy.clitoris import Clitoris
+from body_sim.anatomy.vagina import Vagina
+from body_sim.anatomy.anus import Anus
 from body_sim.anatomy.uterus import (
     # Enums
     UterusState, CervixState, OvaryState, FallopianTubeState,
@@ -17,12 +19,21 @@ from body_sim.anatomy.uterus import (
     UterineWall, Cervix, Ovary, FallopianTube, Uterus, UterusSystem
 )
 
+from body_sim.anatomy.factories import create_penis, create_vagina, create_scrotum
+
 __all__ = [
     "Genital",
     "Nipple", "Areola",
     "Breast",
-    "Penis", "Clitoris", "Vagina", "Anus",
-    "Testicle", "Scrotum",
+    "Penis", 
+    "Clitoris", 
+    "Vagina", 
+    "Anus",
+    "Testicle", 
+    "Scrotum",
+    "create_penis", 
+    "create_vagina", 
+    "create_scrotum",
     # Uterus System
     "UterusState", "CervixState", "OvaryState", "FallopianTubeState",
     "UterineWall", "Cervix", "Ovary", "FallopianTube", "Uterus", "UterusSystem",

@@ -6,7 +6,6 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, Callable, Any, Optional, TYPE_CHECKING
 import math
-import cmath
 
 from body_sim.anatomy.base import Genital
 from body_sim.core.enums import CupSize, BreastState, FluidType

@@ -250,11 +250,11 @@ class SkillBook:
 # Помощники для создания стоимости
 def milk_cost(organ: str, amount: float, min_required: float = 0.0):
     """Стоимость в молоке"""
-    from fluid_system import FluidType
+    from body_sim.core.enums import FluidType
     return ManaCost(FluidType.MILK, organ, amount, min_required)
 
 def cum_cost(organ: str, amount: float, min_required: float = 0.0):
     """Стоимость в сперме"""
-    from fluid_system import FluidType
+    from body_sim.core.enums import FluidType
     return ManaCost(FluidType.CUM, organ, amount, min_required)
 

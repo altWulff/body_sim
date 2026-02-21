@@ -8,13 +8,7 @@ from typing import Optional, List, Dict, Any
 
 from body_sim.core.enums import Sex, BodyType, TesticleSize, CupSize, Color, FluidType, PenisType, VaginaType, ScrotumType
 from body_sim.body.stats import BodyStats
-from body_sim.anatomy.genitals import Penis, Scrotum, Vagina, Clitoris, Anus, create_penis, create_vagina, create_scrotum
-from body_sim.anatomy.uterus import (
-    Uterus, UterusSystem, UterusState, CervixState,
-    Ovary, FallopianTube, OvaryState
-)
-from body_sim.anatomy.breast import Breast
-from body_sim.anatomy.nipple import Areola, Nipple
+from body_sim.anatomy import *
 from body_sim.systems.grid import BreastGrid
 from body_sim.systems.penetration import CrossBodyPenetration
 from body_sim.magic import MagicMixin
@@ -340,7 +334,7 @@ class MaleBody(Body):
     
     def _setup_genitals(self) -> None:
         # Создаем мошонку первой (хранилище спермы)
-        scrotum = Scrotum(
+        scrotum = create_scrotum(
             scrotum_type=self.scrotum_type,
             has_testicles=True,
             testicle_size=self.testicle_size,
@@ -348,7 +342,7 @@ class MaleBody(Body):
         )
         self.scrotums.append(scrotum)
         for i in range(self.penis_count):
-            self.penises.append(Penis(
+            self.penises.append(create_penis(
                 name=f"penis_{i}",
                 base_length=self.penis_size,
                 base_girth=self.penis_girth,
@@ -362,7 +356,7 @@ class MaleBody(Body):
         nipple = Nipple(base_length=0.3, base_width=0.5, color=Color.LIGHT_PINK)
         areola = Areola(base_diameter=2.5, nipples=[nipple], color=Color.LIGHT_PINK)
         breast = Breast(cup=CupSize.FLAT, areola=areola, base_elasticity=1.2)
-        self.breast_grid = BreastGrid(rows=[[breast, breast]], labels=[["chest", "chest"]])
+        self.breast_grid = BreastGrid(rows=[[breast, breast]], labels=[["left", "right"]])
 
     def _setup_uterus(self):
         """Мужское тело не имеет матки."""
@@ -384,7 +378,7 @@ class FemaleBody(Body):
     
     def _setup_genitals(self) -> None:
         for i in range(self.vagina_count):
-            self.vaginas.append(Vagina(
+            self.vaginas.append(create_vagina(
                 name=f"vagina_{i}",
                 base_depth=self.vagina_depth,
                 base_width=self.vagina_width,
@@ -446,7 +440,7 @@ class FutanariBody(Body):
         # Создаем мошонку (даже если внутренняя - сперма всё равно там)
         scrotum = None
         if self.has_scrotum:
-            scrotum = Scrotum(
+            scrotum = create_scrotum(
                 has_testicles=True,
                 testicle_size=self.testicle_size,
                 is_internal=self.internal_testicles,
@@ -456,7 +450,7 @@ class FutanariBody(Body):
         
         # Создаем пенисы с привязкой к мошонке
         for i in range(self.penis_count):
-            penis = Penis(
+            penis = create_penis(
                 name=f"penis_{i}",
                 base_length=self.penis_size,
                 base_girth=self.penis_girth,
