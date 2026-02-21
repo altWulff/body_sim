@@ -120,6 +120,7 @@ class Color(Enum):
     PURPLE = "purple"
     WHITE = "white"
     TRANSLUCENT = "translucent"
+    CRIMSON = "crimson"
 
 
 class AreolaTexture(Enum):

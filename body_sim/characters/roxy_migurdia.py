@@ -14,6 +14,7 @@ from body_sim.core.enums import Sex, BodyType, CupSize, Color, VaginaType, Nippl
 from body_sim.anatomy.nipple import Nipple, Areola
 from body_sim.anatomy.breast import Breast
 from body_sim.systems.grid import BreastGrid
+from body_sim.appearance import Race, EyeType, EarType
 
 
 @dataclass
@@ -34,20 +35,54 @@ class RoxyMigurdia(FemaleBody):
     name: str = "Roxy Migurdia"
     sex: Sex = field(default=Sex.FEMALE, init=False)
     body_type: BodyType = BodyType.PETITE  # Миниатюрное телосложение
+    race: Race = Race.MIGURDIAN
     
-    # Физические параметры (откорректированы для роста 150 см)
+    name: str = "Roxy Migurdia"
+    sex: Sex = field(default=Sex.FEMALE, init=False)
+    body_type: BodyType = BodyType.PETITE
+    
+    # === ВНЕШНОСТЬ (из AppearanceMixin) ===
+    race: Race = Race.MIGURDIAN  # Мигурдийцы - подвид демонов
+    
+    # Переопределяем возраст (мигурдийцы стареют медленно)
+    age: float = 44.0  # Реальный возраст
+    apparent_age: float = 15.0  # Внешний вид
+    
+    # === ФИЗИЧЕСКИЕ ПАРАМЕТРЫ ===
     stats: BodyStats = field(default_factory=lambda: BodyStats(
-        height=150.0,      # Низкий рост
-        weight=42.0,       # Лёгкая
-        hip_width=28.0,    # Узкие бёдра
-        waist_width=22.0,  # Тонкая талия
-        shoulder_width=32.0,  # Узкие плечи
-        flexibility=0.7,   # Гибкая (маг/путешественник)
+        height=150.0,
+        weight=42.0,
+        hip_width=28.0,
+        waist_width=22.0,
+        shoulder_width=32.0,
+        flexibility=0.7,
         arousal=0.0,
         pleasure=0.0,
         pain=0.0,
         fatigue=0.0
     ))
+    
+    # === МИГУРДИЙСКИЕ ОСОБЕННОСТИ ===
+    migurdian_traits: Dict[str, float] = field(default_factory=lambda: {
+        "pain_sensitivity": 1.6,      # +60% к боли
+        "tactile_sensitivity": 1.4,   # +40% к тактильным ощущениям
+        "thermal_sensitivity": 1.3,   # +30% к температуре
+        "pleasure_sensitivity": 1.3,  # +30% к удовольствию
+        "age_appearance_ratio": 0.35, # Выглядит на 35% от возраста
+        "telepathy_range_km": 1000.0, # Телепатия
+    })
+    
+    character_info: Dict[str, Any] = field(default_factory=lambda: {
+        "race_name": "Migurdian Demon-Human",
+        "occupation": "Mage, Former Magic Tutor",
+        "personality_traits": [
+            "tsundere", "prideful", "diligent", 
+            "insecure_about_appearance", "alcoholic_tendencies"
+        ],
+        "magic_affinity": ["water", "ice"],
+        "hair_color": "blue",           # Специфично для Рокси
+        "hair_style": "long_braid",     # Традиционная коса
+    })
     
     # Гениталии - компактные, подростковые пропорции
     vagina_count: int = 1
@@ -59,147 +94,93 @@ class RoxyMigurdia(FemaleBody):
     
     # Грудь - маленькая (AA), характерна для её телосложения
     breast_cup: str = "AA"
-    
-    # Внешность (для рендеринга/описания)
-    appearance: Dict[str, Any] = field(default_factory=lambda: {
-        "hair_color": "blue",           # Голубые волосы (классика мигурдийцев)
-        "hair_length": "long",          # Длинные волосы (обычно в косе)
-        "eye_color": "achromatic_red",  # Ахроматические красные глаза без зрачков
-        "eye_feature": "no_pupils",     # Отсутствуют зрачки
-        "skin_tone": "pale",            # Бледная кожа
-        "skin_texture": "smooth",       # Гладкая чувствительная кожа
-        "distinctive_features": [
-            "ahcromatic_vision",        # Видение в темноте
-            "telepathy_capable",        # Телепатия с другими мигурдийцами
-            "slow_aging",               # Медленное старение
-        ]
-    })
-    
-    # Расовые модификаторы чувствительности
-    migurdian_traits: Dict[str, float] = field(default_factory=lambda: {
-        "pain_sensitivity": 1.6,      # +60% к боли (низкий болевой порог)
-        "tactile_sensitivity": 1.4,   # +40% к тактильным ощущениям
-        "thermal_sensitivity": 1.3,   # +30% к температурным ощущениям
-        "pleasure_sensitivity": 1.3,  # +30% к удовольствию (чувствительная кожа)
-        "age_appearance_ratio": 0.35, # Выглядит на 35% от реального возраста
-        "telepathy_range_km": 1000.0, # Дальность телепатии
-    })
-    
-    # Ролевая информация
-    character_info: Dict[str, Any] = field(default_factory=lambda: {
-        "age_real": 44,               # Реальный возраст (родилась ~50 году K)
-        "age_appearance": 15,         # Внешний вид (~15 лет)
-        "race": "Migurdian Demon-Human",
-        "occupation": "Mage, Former Magic Tutor",
-        "personality_traits": [
-            "tsundere", "prideful", "diligent", 
-            "insecure_about_appearance", "alcoholic_tendencies"
-        ],
-        "magic_affinity": ["water", "ice"],
-    })
 
     def __post_init__(self):
         super().__post_init__()
         self._apply_migurdian_physiology()
+        self._customize_migurdian_appearance()
     
-    def _setup_breasts(self) -> None:
-        """
-        Настройка маленькой чувствительной груди Рокси.
-        AA-cup, маленькие соски, высокая чувствительность ареол.
-        """
-        
-        # Создаём сетку из двух грудей
-        left_breast = Breast(
-            cup=CupSize.AA,
-            areola=Areola(
-                base_diameter=2.8,
-                color=Color.PALE_PINK,
-                nipples=[Nipple(
-                    base_length=0.35,
-                    base_width=0.55,
-                    color=Color.PALE_PINK,
-                    erect_multiplier=1.6
-                )],
-                puffiness=0.2,
-                sensitivity=0.9
-            ),
-            base_elasticity=1.2,
-            leak_factor=15.0
-            
-            
+    def _customize_migurdian_appearance(self):
+        """Настроить специфичную для мигурдийцев внешность."""
+        # Глаза - ахроматические красные без зрачков (особенность Рокси)
+        self.eyes = type(self.eyes)(
+            type=EyeType.DEMONIC,
+            color=Color.CRIMSON,  # Красные без зрачков
+            glow=True,            # Свечение в темноте
+            pupil_shape="none"    # Ахроматические (нет зрачков)
         )
         
-        right_breast = Breast(
-            cup=CupSize.AA,
-            areola=Areola(
-                base_diameter=2.8,
-                color=Color.PALE_PINK,
-                nipples=[Nipple(
-                    base_length=0.35,
-                    base_width=0.55,
-                    color=Color.PALE_PINK,
-                    erect_multiplier=1.6
-                )],
-                puffiness=0.2,
-                sensitivity=0.9
-            ),
-            base_elasticity=1.2,
-            leak_factor=15.0
+        # Уши - острые но короткие (не как у эльфов)
+        self.ears = type(self.ears)(
+            type=EarType.POINTED,
+            length=3.5,           # Короче эльфийских (6см)
+            mobility=0.2          # Немного подвижны
         )
         
-        self.breast_grid = BreastGrid(
-            rows=[[left_breast, right_breast]],
-            labels=[["left","right"]]
-        )
+        # Кожа - очень бледная, чувствительная
+        self.skin_color = Color.PALE_IVORY
+        self.skin_texture = "smooth_sensitive"
+        
+        # Рост уже установлен через stats, но проверим
+        if self.stats.height == 0:
+            self.stats.height = 150.0
     
     def _apply_migurdian_physiology(self) -> None:
-        """Применить физиологические особенности мигурдийцев."""
-        # Модифицируем реакцию на стимуляцию через переопределение методов
-        # или добавление слушателей событий
-        
+        """Применить физиологические модификаторы."""
         if self.breast_grid:
-            for row in self.breast_grid.rows:
-                for breast in row:
-                    # Усиливаем реакцию груди на стимуляцию
-                    breast.areola.sensitivity = min(1.0, breast.areola.sensitivity * 1.3)
-                    
-                    # Добавляем слушатель для расовых реакций
-                    breast.on("state_change", self._on_breast_state_change)
+            for breast in self.breast_grid.all():
+                # Усиливаем чувствительность груди
+                breast.areola.sensitivity = min(1.0, breast.areola.sensitivity * 1.3)
+                breast.sensitivity = 1.4
+                
+                # Добавляем слушатель для расовых реакций
+                breast.on("state_change", self._on_breast_state_change)
+        
+        # Настройка влагалища
+        if self.vaginas:
+            for vagina in self.vaginas:
+                vagina.sensitivity = 1.4
+                vagina.elasticity = 0.95  # Высокая эластичность при компактности
     
     def _on_breast_state_change(self, breast, old, new):
         """Расовая реакция на изменение состояния груди."""
-        # Мигурдийцы более чувствительны к дискомфорту
         if new.name == "OVERPRESSURED":
-            # Более сильная реакция на переполнение
-            self.stats.pain += 0.15 * self.migurdian_traits["pain_sensitivity"]
+            # Мигурдийцы сильнее реагируют на дискомфорт
+            pain_amount = 0.15 * self.migurdian_traits["pain_sensitivity"]
+            self.stats.pain = min(1.0, self.stats.pain + pain_amount)
+            self._emit("migurdian_pain_reaction", source="breast_pressure", intensity=pain_amount)
     
     def stimulate(self, region: str, index: int = 0, intensity: float = 0.1) -> None:
-        """
-        Переопределенная стимуляция с учётом мигурдийской чувствительности.
-        """
-        # Усиливаем интенсивность из-за чувствительной кожи
+        """Стимуляция с учетом мигурдийской чувствительности."""
+        # Усиливаем интенсивность
         modified_intensity = intensity * self.migurdian_traits["tactile_sensitivity"]
         
-        # Базовая стимуляция
+        # Базовая стимуляция (через AppearanceMixin не идет, но через Body)
         super().stimulate(region, index, modified_intensity)
         
-        # Дополнительная боль при высокой интенсивности (низкий болевой порог)
+        # Боль при высокой интенсивности (низкий болевой порог)
         if modified_intensity > 0.5:
             pain_amount = (modified_intensity - 0.5) * 0.3 * self.migurdian_traits["pain_sensitivity"]
             self.stats.pain = min(1.0, self.stats.pain + pain_amount)
+            
+            # Уши прижимаются при боли
+            if pain_amount > 0.1:
+                self.flatten_ears()
     
     def tick(self, dt: float = 1.0) -> None:
         """Обновление с расовыми особенностями."""
         super().tick(dt)
         
         # Мигурдийцы быстрее восстанавливаются от усталости (молодой организм)
-        # но медленнее от боли (чувствительность)
         if self.stats.fatigue > 0:
             self.stats.fatigue = max(0.0, self.stats.fatigue - 0.02 * dt)
         
-        # Боль проходит медленнее
+        # Боль проходит медленнее (высокая чувствительность)
         if self.stats.pain > 0:
-            self.stats.pain = max(0.0, self.stats.pain - 0.08 * dt)  # Медленнее стандартных 0.15
+            self.stats.pain = max(0.0, self.stats.pain - 0.08 * dt)
+        
+        # Возврат ушей в нейтральное положение происходит автоматически
+        # через AppearanceMixin.tick(), но можно добавить логику здесь
     
     def get_rich_description(self) -> str:
         """Получить форматированное описание для Rich."""
@@ -237,7 +218,7 @@ class RoxyMigurdia(FemaleBody):
 def create_roxy() -> RoxyMigurdia:
     """Создать Рокси Мигурдию с дефолтными параметрами."""
     from body_sim.systems.events import EventfulBody
-    return EventfulBody(RoxyMigurdia())
+    return EventfulBody(RoxyMigurdia(race=Race.MIGURDIAN))
 
 
 # Для интеграции с консолью

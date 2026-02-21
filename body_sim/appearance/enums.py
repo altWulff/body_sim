@@ -81,6 +81,7 @@ class EarType(Enum):
     NONE = "none"                      # Отсутствуют
     FELINE = "feline"
     CANINE = "canine"
+    DEMON = "demon"
 
 class HairType(Enum):
     """Типы волос/покрова."""
@@ -196,6 +197,7 @@ class Race(Enum):
     CANINE = "canine"
     EQUINE = "equine"
     SHAPESHIFTER = "shapeshifter"
+    MIGURDIAN = "migurdian"
 
 
 class HornType(Enum):
@@ -408,5 +410,19 @@ RACE_ANATOMY_PRESETS: Dict[Race, Dict[str, Any]] = {
         "elasticity": 0.75,
         "skin_color": Color.TAN,
         "skin_texture": "fur",
-    }
+    },
+    Race.MIGURDIAN: {
+        "penis_length": (12.0, 16.0),
+        "penis_girth": (9.0, 12.0),
+        "vagina_depth": (7.0, 9.0),      # Меньше среднего (компактное телосложение)
+        "breast_cup": [CupSize.AA, CupSize.A, CupSize.B],  # Миниатюрные
+        "nipple_color": Color.PALE_PINK,
+        "areola_size": 2.5,              # Маленькие ареолы
+        "ear_type": EarType.DEMON,       # Острые как у демонов, но короткие
+        "eye_types": [EyeType.DEMONIC],  # Ахроматические
+        "elasticity": 0.95,              # Очень эластичная кожа
+        "skin_color": Color.PALE_IVORY,
+        "skin_texture": "smooth_sensitive",
+        "height_range": (140.0, 155.0),  # Низкий рост
+    },
 }

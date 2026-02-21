@@ -60,7 +60,7 @@ class Body(MagicMixin, AppearanceMixin):
     
     def __post_init__(self):
         # Применяем пресет расы
-        AppearanceMixin.__post_init__(self)
+        super().__post_init__()
         # Настройка анатомии по полу и расе
         self._setup_genitals()
         self._setup_uterus()
