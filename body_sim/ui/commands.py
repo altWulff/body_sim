@@ -2619,6 +2619,24 @@ Certain skills create combos when cast in sequence:
     """
     console.print(help_text)        
 
+def cmd_stats(args, context):
+    """
+    Показать секс-статистику.
+    Использование: stats [detailed] [history]
+    """
+    from body_sim.core.sex_stats import sex_stats
+    
+    detailed = 'detailed' in args or '-d' in args
+    show_history = 'history' in args or '-h' in args
+    # Вывод статистики
+    console.print(sex_stats.render(detailed=detailed))
+    
+    if show_history and sex_stats._history:
+        console.print("\n")
+        console.print(sex_stats.render_history(limit=10))
+
+
+
 # ============ Создание реестра команд ============
 
 def create_registry() -> CommandRegistry:
@@ -2702,6 +2720,13 @@ def create_registry() -> CommandRegistry:
         "appearance [race|eyes|ears|hair|tail|wings|horns|skin|full]",
         cmd_appearance,
         "appearance"
+    ))
+    registry.register(Command(
+        "sex_stats", ["sstats", "ss"],
+        "Show sex statistics",
+        "",
+        cmd_stats,
+        "sex_stats"
     ))
 
     # Реакции (если доступны)
