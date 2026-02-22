@@ -16,36 +16,6 @@ from body_sim.magic import MagicMixin
 from body_sim.appearance import AppearanceMixin, Race, EyeAppearance, EarAppearance, EyeType, EarType, RACE_ANATOMY_PRESETS, get_race_preset, get_random_race_size
 
 
-@dataclass  
-class Body:
-    # ... существующие системы ...
-    
-    def __post_init__(self):
-        # Установка связей
-        if self.esophagus is None:
-            self.esophagus = Esophagus()
-        
-        # Связываем рот с пищеводом
-        mouth = self.mouth_system.primary
-        if mouth:
-            mouth.throat.esophagus_connection = self.esophagus
-        
-        # Связываем пищевод с желудком
-        stomach = self.stomach_system.primary
-        if stomach:
-            self.esophagus.stomach_connection = stomach
-            stomach.cardia.esophagus_connection = self.esophagus
-    
-    def tick(self, dt: float = 1.0):
-        # ... существующие тики ...
-        
-        # Новые системы
-        self.mouth_system.tick(dt)
-        self.stomach_system.tick(dt)
-        if self.esophagus:
-            self.esophagus.tick(dt)
-
-
 @dataclass
 class Body(MagicMixin, AppearanceMixin):
     name: str = "Unnamed"
@@ -100,6 +70,20 @@ class Body(MagicMixin, AppearanceMixin):
         self._setup_genitals()
         self._setup_uterus()
         self._setup_breasts()
+        
+        if self.esophagus is None:
+            self.esophagus = Esophagus()
+            
+        # Связываем рот с пищеводом
+        mouth = self.mouth_system.primary
+        if mouth:
+            mouth.throat.esophagus_connection = self.esophagus
+        
+        # Связываем пищевод с желудком
+        stomach = self.stomach_system.primary
+        if stomach:
+            self.esophagus.stomach_connection = stomach
+            stomach.cardia.esophagus_connection = self.esophagus
         
         # Анус есть у всех
         if not self.anuses:
@@ -493,6 +477,12 @@ class Body(MagicMixin, AppearanceMixin):
         if self.breast_grid:
             from body_sim.core.fluids import FLUID_DEFS
             self.breast_grid.tick_all(FLUID_DEFS, dt)
+            
+        # Новые системы
+        self.mouth_system.tick(dt)
+        self.stomach_system.tick(dt)
+        if self.esophagus:
+            self.esophagus.tick(dt)
 
         self.magic_tick()
 

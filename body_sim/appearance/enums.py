@@ -4,6 +4,7 @@
 """
 
 from enum import Enum, auto
+import random
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Callable
 from body_sim.core.enums import Color, CupSize, PenisType, VaginaType, ScrotumType

@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
-from body_sim.core.enums import FluidType
+from typing import Optional, List, Dict, Any
 
+from body_sim.core.enums import FluidType
+from body_sim.core.fluids import FluidMixture
 
 @dataclass
 class Esophagus:
