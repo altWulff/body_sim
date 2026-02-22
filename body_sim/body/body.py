@@ -13,11 +13,11 @@ from body_sim.anatomy import *
 from body_sim.systems.grid import BreastGrid
 from body_sim.systems.penetration import CrossBodyPenetration
 from body_sim.magic import MagicMixin
-from body_sim.appearance import AppearanceMixin, Race, EyeAppearance, EarAppearance, EyeType, EarType, RACE_ANATOMY_PRESETS, get_race_preset, get_random_race_size
+from body_sim.appearance import ExtendedAppearanceMixin, Race, EyeAppearance, EarAppearance, EyeType, EarType, RACE_ANATOMY_PRESETS, get_race_preset, get_random_race_size
 
 
 @dataclass
-class Body(MagicMixin, AppearanceMixin):
+class Body(MagicMixin, ExtendedAppearanceMixin):
     name: str = "Unnamed"
     sex: Sex = Sex.NONE
     body_type: BodyType = BodyType.AVERAGE
@@ -464,7 +464,8 @@ class Body(MagicMixin, AppearanceMixin):
     def tick(self, dt: float = 1.0) -> None:
         """Обновление состояния тела."""
         self.stats.tick(dt)
-        AppearanceMixin.tick(self, dt)
+        ExtendedAppearanceMixin.__post_init__(self)
+        self.update_appearance_from_anatomy(self)
         
         # Обновление гениталий
         for penis in self.penises:

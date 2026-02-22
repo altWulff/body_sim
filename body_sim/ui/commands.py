@@ -52,6 +52,13 @@ try:
     STOMACH_COMMANDS_AVAILABLE = True
 except ImportError:
     STOMACH_COMMANDS_AVAILABLE = False
+    
+try:
+    from body_sim.ui.appearance_part_commands import register_appearance_part_commands
+    APPEARANCE_PARTS_AVAILABLE = True
+except ImportError as e:
+    APPEARANCE_PARTS_AVAILABLE = False
+    console.print(f"[dim]Appearance part commands not available: {e}[/dim]")
 
 console = Console()
 
@@ -491,6 +498,50 @@ def cmd_help(args: List[str], ctx: CommandContext):
 
 Use [cyan]help[/cyan] without args to see all command categories.
 """,
+"appearance": """
+[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
+[bold cyan]║                 APPEARANCE COMMANDS                          ║[/bold cyan]
+[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
+
+[bold yellow]🎭 GENERAL APPEARANCE[/bold yellow]
+
+  [green]appearance[/green]              - Show current appearance
+  [green]appearance race <type>[/green]  - Change race (human, elf, demon, etc.)
+  [green]appearance eyes[/green]         - Eye commands (add, remove, color)
+  [green]appearance ears[/green]         - Ear commands (type, twitch, perk)
+  [green]appearance hair[/green]         - Hair commands (color, style, cut)
+  [green]appearance tail[/green]         - Tail commands (type, wag, lash)
+  [green]appearance wings[/green]        - Wings commands (unfold, fold, damage)
+  [green]appearance horns[/green]        - Horns commands (add, remove, grow)
+  [green]appearance skin[/green]         - Skin commands (texture, color, scar)
+  [green]appearance full[/green]         - Detailed appearance view
+
+[bold yellow]👄 BODY PARTS APPEARANCE[/bold yellow]
+
+  [green]mouth_appearance[/green]        - Mouth/lips appearance
+  [green]mouth_appearance update[/green] - Update from anatomy
+  [green]mouth_appearance fullness <type>[/green] - Set lip fullness
+  [green]mouth_appearance color <color>[/green] - Set lip color
+  [green]mouth_appearance piercing <n>[/green] - Set piercings
+
+  [green]belly_appearance[/green]        - Belly/stomach appearance  
+  [green]belly_appearance update[/green] - Update from stomach state
+  [green]belly_appearance shape <type>[/green] - Set base shape
+  [green]belly_appearance button <type>[/green] - Set belly button type
+  [green]belly_appearance size <cm>[/green] - Set base size
+  [green]belly_appearance tan[/green]    - Toggle tanning
+
+  [green]anus_appearance[/green]         - Anus appearance
+  [green]anus_appearance <idx>[/green]   - Select anus index
+  [green]anus_appearance update[/green]  - Update from anatomy
+  [green]anus_appearance type <type>[/green] - Set base type
+  [green]anus_appearance color <color>[/green] - Set color
+  [green]anus_appearance hair <yes/no>[/green] - Toggle hair
+  [green]anus_appearance reset[/green] - Reset to base state
+
+  [green]body_parts_appearance[/green]   - Show all parts overview
+  [green]body_parts_appearance update[/green] - Update all from anatomy
+        """,
     }
 
     if topic in help_topics:
@@ -499,6 +550,7 @@ Use [cyan]help[/cyan] without args to see all command categories.
             "breasts": "bright_cyan", 
             "genitals": "bright_red",
             "general": "bright_green",
+            "appearance": "bright_yellow",
         }
         console.print(Panel(help_topics[topic], 
                            title=f"[bold]{topic.upper()} System Help[/bold]", 
@@ -2727,5 +2779,13 @@ def create_registry() -> CommandRegistry:
             register_stomach_commands(registry, console)
         except Exception as e:
             console.print(f"[yellow]Warning: Failed to load stomach commands: {e}[/yellow]")
+            
+    # ============ APPEARANCE PARTS COMMANDS ============
+    if APPEARANCE_PARTS_AVAILABLE:
+        try:
+            register_appearance_part_commands(registry)
+            console.print("[dim]Body parts appearance commands loaded[/dim]")
+        except Exception as e:
+            console.print(f"[yellow]Warning: Failed to load appearance part commands: {e}[/yellow]")
         
     return registry

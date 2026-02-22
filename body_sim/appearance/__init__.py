@@ -7,8 +7,9 @@ from .enums import *
 from .features import (
     Eye, Ear, Hair, Horn, Tail, Wings, FacialStructure, Skin
 )
-from .body_integration import AppearanceMixin, get_race_preset, get_random_race_size
+from .body_integration import AppearanceMixin, get_race_preset, get_random_race_size, ExtendedAppearanceMixin
 from .appearance import Appearance
+from .body_parts import MouthAppearance, BellyAppearance, AnusAppearance
 
 __all__ = [
     # Enums
@@ -18,5 +19,5 @@ __all__ = [
     # Classes
     "Eye", "Ear", "Hair", "Horn", "Tail", "Wings", "FacialStructure", "Skin",
     "Appearance", "AppearanceMixin", "EyeAppearance", "EarAppearance", "RACE_ANATOMY_PRESETS", 
-    "get_race_preset", "get_random_race_size",
+    "get_race_preset", "get_random_race_size", "ExtendedAppearanceMixin", "MouthAppearance", "BellyAppearance", "AnusAppearance",
 ]

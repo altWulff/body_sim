@@ -199,6 +199,7 @@ class Race(Enum):
     EQUINE = "equine"
     SHAPESHIFTER = "shapeshifter"
     MIGURDIAN = "migurdian"
+    TROLL = "troll"
 
 
 class HornType(Enum):
@@ -427,3 +428,55 @@ RACE_ANATOMY_PRESETS: Dict[Race, Dict[str, Any]] = {
         "height_range": (140.0, 155.0),  # Низкий рост
     },
 }
+
+class LipFullness(Enum):
+    """Полнота губ."""
+    THIN = auto()        # Тонкие
+    AVERAGE = auto()     # Средние
+    FULL = auto()        # Пухлые
+    VERY_FULL = auto()   # Очень пухлые
+    INFLATED = auto()    # Надутые/увеличенные
+
+
+class LipColor(Enum):
+    """Естественный цвет губ."""
+    PALE_PINK = "pale pink"
+    PINK = "pink"
+    ROSE = "rose"
+    RED = "red"
+    DARK_RED = "dark red"
+    PURPLE = "purple"
+    BLACK = "black"
+
+
+class BellyShape(Enum):
+    """Форма живота."""
+    FLAT = auto()        # Плоский
+    SLIM = auto()        # Стройный
+    SOFT = auto()        # Мягкий/небольшая пышность
+    ROUNDED = auto()     # Круглый
+    POT = auto()         # Пивной живот
+    PREGNANT = auto()    # Беременный
+    INFLATED = auto()    # Надутый (воздухом/жидкостью)
+    DISTENDED = auto()   # Растянутый
+    MUSCULAR = auto()    # Мускулистый (пресс)
+
+    
+class BellyButtonType(Enum):
+    """Тип пупка."""
+    INNIE = auto()       # Впадающий
+    OUTIE = auto()       # Выпирающий
+    HORIZONTAL = auto()  # Горизонтальный
+    VERTICAL = auto()    # Вертикальный
+    T_SAPED = auto()     # T-образный
+
+
+class AnusAppearanceType(Enum):
+    """Внешний вид ануса."""
+    TIGHT = auto()       # Тугой
+    NORMAL = auto()      # Нормальный
+    RELAXED = auto()    # Расслабленный
+    GAPING = auto()      # Раздутый/открытый
+    PROLAPSED = auto()   # Выпадающий
+    PUFFED = auto()      # Опухший
+    STRETCHED = auto()   # Растянутый
