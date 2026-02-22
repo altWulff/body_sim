@@ -507,6 +507,79 @@ class Stomach:
         pressure += stretch_penalty
         
         return pressure
+
+    def receive_from_rectum(self, obj: Any) -> bool:
+        """
+        Принять объект из прямой кишки (ретроградная пенетрация).
+        Объект проходит через пилорус (обычно выход) в обратном направлении.
+        """
+        obj_diameter = getattr(obj, 'diameter', 0) or getattr(obj, 'effective_diameter', 0)
+        
+        # Проверяем пилорус (теперь как вход сзади)
+        pylorus_diameter = getattr(self.pylorus, 'diameter', 1.0) if self.pylorus else 1.0
+        pylorus_open = getattr(self.pylorus, 'is_open', False) if self.pylorus else False
+        
+        # При пенетрации из rectum пилорус должен быть расслаблен/растянут
+        if obj_diameter > pylorus_diameter * 2:  # Можно растянуть пилорус сильнее при force
+            if not pylorus_open:
+                # Пытаемся открыть/растянуть пилорус
+                if self.pylorus:
+                    if hasattr(self.pylorus, 'dilate'):
+                        self.pylorus.dilate(obj_diameter - pylorus_diameter)
+                    else:
+                        return False
+                else:
+                    return False
+        
+        # Проверяем объем
+        obj_volume = getattr(obj, 'volume', 0) or getattr(obj, 'effective_volume', 0)
+        if obj_volume > self.available_volume:
+            # Пытаемся растянуть желудок
+            needed = ((self.filled + obj_volume) / self.base_volume) ** (1/3)
+            if needed > self.inflation_ratio * self.walls.stretch_ratio:
+                if not self.walls.can_stretch(needed / self.inflation_ratio):
+                    return False
+                self.walls.stretch(needed / self.inflation_ratio)
+        
+        # Объект входит через пилорус (с задней стороны)
+        self.inserted_object = obj
+        self.penetration_depth = self.base_length * self.inflation_ratio  # Начинаем с дна
+        
+        if hasattr(obj, 'is_inserted'):
+            obj.is_inserted = True
+        
+        self._emit("object_entered_from_rectum", object=obj, diameter=obj_diameter)
+        self._update_state()
+        return True
+    
+    def advance_object_reverse(self, depth: float) -> float:
+        """
+        Продвинуть объект дальше в желудок при обратной пенетрации
+        (от пилоруса к кардии).
+        """
+        if not self.inserted_object:
+            return 0.0
+        
+        # При обратной пенетрации движение от пилоруса (глубина base_length) к кардии (0)
+        # penetration_depth в этом режиме - расстояние от пилоруса
+        new_depth_from_pylorus = max(0, self.penetration_depth - depth)
+        moved = self.penetration_depth - new_depth_from_pylorus
+        self.penetration_depth = new_depth_from_pylorus
+        
+        # Если дошли до кардии
+        if self.penetration_depth <= 0:
+            self._emit("object_reached_cardia_from_behind", object=self.inserted_object)
+        
+        return moved
+    
+    def get_object_depth_from_anus(self, rectum_length: float) -> float:
+        """Получить общую глубину объекта от ануса."""
+        if not self.inserted_object:
+            return 0.0
+        
+        # Длина rectum + длина желудка - текущая позиция от пилоруса
+        stomach_depth = (self.base_length * self.inflation_ratio) - self.penetration_depth
+        return rectum_length + stomach_depth
     
     def get_landmarks(self):
         """Анатомические отметки для пенетрации."""
@@ -548,12 +621,12 @@ class Stomach:
             ),
             DepthLandmark(
                 zone=PenetrationDepthZone.PYLORUS,
-                depth_cm=self.base_length * self.inflation_ratio,
+                depth_cm=self.base_length * self.inflation_ratio + rectum_length,  # От ануса
                 min_diameter=0.5,
-                max_diameter=2.0,
-                resistance_factor=0.9,
-                description="Сфинктер пилорус (выход в двенадцатиперстную кишку)",
-                can_pass=False  # Обычно закрыт
+                max_diameter=4.0,  # Можно растянуть
+                resistance_factor=0.85,
+                description="Пилорус (вход сзади из прямой кишки)",
+                can_pass=True  # Для ретроградной пенетрации
             ),
         ]
 

@@ -54,6 +54,7 @@ class Body(MagicMixin, AppearanceMixin):
     # Новые системы
     mouth_system: MouthSystem = field(default_factory=MouthSystem)
     stomach_system: StomachSystem = field(default_factory=StomachSystem)
+    rectum_system: RectumSystem = field(default_factory=RectumSystem)
     
     # Связи
     esophagus: Optional['Esophagus'] = field(default=None)
@@ -88,6 +89,18 @@ class Body(MagicMixin, AppearanceMixin):
         # Анус есть у всех
         if not self.anuses:
             self.anuses.append(Anus())
+        
+        # === СВЯЗЬ АНУСОВ С ЖЕЛУДКОМ ЧЕРЕЗ RECTUM ===
+        rectum = self.rectum_system.primary
+        if rectum:
+            # Каждый анус соединяется с прямой кишкой
+            for anus in self.anuses:
+                anus.rectum_connection = rectum
+                rectum.anus_connection = anus
+            
+            # Прямая кишка соединяется с желудком
+            if stomach:
+                rectum.stomach_connection = stomach
         
         # Инициализация магии
         self.init_magic()
@@ -481,6 +494,7 @@ class Body(MagicMixin, AppearanceMixin):
         # Новые системы
         self.mouth_system.tick(dt)
         self.stomach_system.tick(dt)
+        self.rectum_system.tick(dt)
         if self.esophagus:
             self.esophagus.tick(dt)
 

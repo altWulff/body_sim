@@ -435,13 +435,14 @@ class CervixType(Enum):
         self.sensitivity = stats.get("sensitivity", 1.0)
         self.protective = stats.get("protective", False)
 
-
 class AnusType(Enum):
-    TIGHT = "tight"
-    AVERAGE = "average"
-    LOOSE = "loose"
-    GAPING = "gaping"
-    PROLAPSE = "prolapse"
+    """Типы ануса (добавить к существующему если есть)."""
+    TIGHT = auto()               # Тугой
+    AVERAGE = auto()             # Средний
+    LOOSE = auto()              # Расширенный
+    GAPING = auto()             # Раздутый
+    PROLAPSED = auto()          # Выпадающий
+"
 
 
 # ========== События ==========
@@ -601,4 +602,31 @@ class PenetrationDepthZone(Enum):
     BODY_STOMACH = auto()        # Тело желудка
     ANTRUM = auto()              # Антрум
     PYLORUS = auto()             # Пилорус (выход)
+    # Анальная система
+    ANAL_CANAL = auto()          # Анальный канал (4см)
+    RECTAL_AMPULLA = auto()      # Ректальная ампула
+    RECTUM_BODY = auto()         # Тело прямой кишки
+    SIGMOID_COLON = auto()       # Сигмовидная колонка
+    COLON_STOMACH_JUNCTION = auto()  # Соединение с желудком
     
+class RectumState(Enum):
+    """Состояние прямой кишки."""
+    EMPTY = auto()
+    NORMAL = auto()
+    DISTENDED = auto()
+    STRETCHED = auto()
+    FULL = auto()
+    PROLAPSED = auto()
+    
+class AnalSphincterState(Enum):
+    """Состояние анального сфинктера."""
+    CLOSED = auto()
+    SLIGHTLY_OPEN = auto()
+    RELAXED = auto()
+    GAPING = auto()
+    STRETCHED = auto()
+    PROLAPSED = auto()
+
+
+
+
