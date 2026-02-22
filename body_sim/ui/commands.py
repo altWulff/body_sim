@@ -31,14 +31,27 @@ try:
 except ImportError as e:
     MAGIC_AVAILABLE = False
     print(f"[dim]Magic system not available: {e}[/dim]")
-    
+
+# Анус команды
 try:
     from body_sim.ui.anus_commands import register_anus_commands
     ANUS_COMMANDS_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     ANUS_COMMANDS_AVAILABLE = False
-    print(f"[dim]Anus commands not available: {e}[/dim]")
-    
+
+# Рот команды
+try:
+    from body_sim.ui.mouth_commands import register_mouth_commands
+    MOUTH_COMMANDS_AVAILABLE = True
+except ImportError:
+    MOUTH_COMMANDS_AVAILABLE = False
+
+# Желудок команды
+try:
+    from body_sim.ui.stomach_commands import register_stomach_commands
+    STOMACH_COMMANDS_AVAILABLE = True
+except ImportError:
+    STOMACH_COMMANDS_AVAILABLE = False
 
 console = Console()
 
@@ -2700,5 +2713,19 @@ def create_registry() -> CommandRegistry:
             register_anus_commands(registry, console)
         except Exception as e:
             console.print(f"[yellow]Warning: Failed to load anus commands: {e}[/yellow]")
-            
+
+    # Рот
+    if MOUTH_COMMANDS_AVAILABLE:
+        try:
+            register_mouth_commands(registry, console)
+        except Exception as e:
+            console.print(f"[yellow]Warning: Failed to load mouth commands: {e}[/yellow]")
+    
+    # Желудок
+    if STOMACH_COMMANDS_AVAILABLE:
+        try:
+            register_stomach_commands(registry, console)
+        except Exception as e:
+            console.print(f"[yellow]Warning: Failed to load stomach commands: {e}[/yellow]")
+        
     return registry
