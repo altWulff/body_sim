@@ -4,6 +4,9 @@
 """
 
 from body_sim.anatomy.base import Genital
+from body_sim.anatomy.stomach import StomachSystem
+from body_sim.anatomy.mouth import MouthSystem
+from body_sim.anatomy.esophagus import Esophagus
 from body_sim.anatomy.nipple import Nipple, Areola
 from body_sim.anatomy.breast import Breast
 from body_sim.anatomy.testicle import Testicle
@@ -37,4 +40,5 @@ __all__ = [
     # Uterus System
     "UterusState", "CervixState", "OvaryState", "FallopianTubeState",
     "UterineWall", "Cervix", "Ovary", "FallopianTube", "Uterus", "UterusSystem",
+    "StomachSystem", "MouthSystem", "Esophagus",
 ]

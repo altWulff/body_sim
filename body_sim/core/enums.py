@@ -62,6 +62,10 @@ class FluidType(Enum):
     WATER = auto()
     HONEY = auto()
     OIL = auto()
+    SALIVA = auto()              # Слюна
+    CHYLE = auto()               # Химус (переваренная пища)
+    STOMACH_ACID = auto()        # Желудочная кислота
+    BILE = auto()                # Желчь
     CUSTOM = auto()
 
 
@@ -494,3 +498,107 @@ class InsertionStatus(Enum):
     INSERTING = auto()
     FULLY_INSERTED = auto()
     STUCK = auto()
+
+class LipState(Enum):
+    """Состояние губ."""
+    CLOSED = auto()          # Сжаты
+    SLIGHTLY_OPEN = auto()   # Приоткрыты
+    OPEN = auto()            # Открыты
+    STRETCHED = auto()       # Растянуты
+    PUFFED = auto()          # Надуты
+    NUMB = auto()            # Онемели (после долгого растяжения)
+
+
+class MouthState(Enum):
+    """Состояние рта."""
+    EMPTY = auto()           # Пуст
+    NORMAL = auto()          # Норма
+    TENSE = auto()           # Натянут
+    STUFFED = auto()         # Заполнен
+    DISTENDED = auto()       # Растянут
+    GAGGING = auto()         # Рвотный рефлекс
+    CHOKING = auto()         # Удушье
+
+
+class ThroatState(Enum):
+    """Состояние глотки."""
+    CLOSED = auto()          # Закрыта
+    RELAXED = auto()         # Расслаблена
+    CONSTRICTED = auto()     # Сжата
+    PENETRATED = auto()      # Проникновение
+    STRETCHED = auto()       # Растянута
+
+class StomachState(Enum):
+    """Состояние желудка."""
+    EMPTY = auto()           # Пуст
+    NORMAL = auto()          # Норма
+    FILLED = auto()          # Заполнен
+    DISTENDED = auto()       # Растянут
+    HYPERDISTENDED = auto()  # Сильно растянут
+    OVERSTUFFED = auto()     # Переполнен
+    RUPTURE_RISK = auto()    # Риск разрыва
+    RUPTURED = auto()        # Разрыв
+
+
+class CardiaState(Enum):
+    """Состояние сфинктера кардии (вход в желудок)."""
+    CLOSED = auto()          # Закрыт
+    SLIGHTLY_OPEN = auto()   # Приоткрыт
+    OPEN = auto()            # Открыт
+    DILATED = auto()         # Расширен
+    STRETCHED = auto()       # Растянут
+    INcompetent = auto()     # Недостаточность (рефлюкс)
+
+
+class DigestionState(Enum):
+    """Состояние пищеварения."""
+    EMPTY = auto()
+    FILLING = auto()
+    PROCESSING = auto()
+    FULL = auto()
+    OVERLOADED = auto()
+
+
+class PenetrationDepthZone(Enum):
+    """Анатомические зоны для глубинного проникновения."""
+    # Вагинальные
+    VAGINA_INTROITUS = auto()      # Вход
+    VAGINA_CANAL = auto()          # Канал
+    VAGINA_FORNIX = auto()         # Свода (глубоко)
+    CERVIX_EXTERNAL_OS = auto()    # Наружный зев шейки
+    CERVIX_CANAL = auto()          # Канал шейки
+    CERVIX_INTERNAL_OS = auto()    # Внутренний зев
+    UTERUS_CAVITY = auto()         # Полость матки
+    UTERUS_FUNDUS = auto()         # Дно матки
+    TUBE_ISTHMUS = auto()          # Устье трубы
+    TUBE_AMPULLA = auto()          # Ампулла трубы
+    TUBE_INFUNDIBULUM = auto()     # Воронка трубы
+    OVARY_SURFACE = auto()         # Поверхность яичника
+    OVARY_PARENCHYMA = auto()      # Внутрь яичника
+
+    # Уретральные
+    URETHRA_MEATUS = auto()        # Наружное отверстие
+    URETHRA_CANAL = auto()         # Канал
+    URETHRA_TRIGONE = auto()       # Треугольник мочевого пузыря
+
+    # Молочные
+    NIPPLE_SURFACE = auto()        # Поверхность соска
+    LACTIFEROUS_SINUS = auto()     # Молочный синус
+    LACTIFEROUS_DUCT = auto()      # Молочный проток
+    BREAST_ALVEOLI = auto()        # Дольки (глубоко)
+
+    # Рот
+    MOUTH_ENTRANCE = auto()      # Губы
+    MOUTH_CAVITY = auto()        # Полость рта
+    OROPHARYNX = auto()          # Зев
+    HYPOPHARYNX = auto()         # Гипофаринкс (гортань)
+    ESOPHAGUS_ENTRANCE = auto()  # Вход в пищевод
+    ESOPHAGUS = auto()           # Пищевод
+    
+    # Желудок
+    CARDIA = auto()              # Кардия (вход)
+    FUNDUS = auto()              # Дно желудка
+    BODY_STOMACH = auto()        # Тело желудка
+    ANTRUM = auto()              # Антрум
+    PYLORUS = auto()             # Пилорус (выход)
+    

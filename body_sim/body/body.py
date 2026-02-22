@@ -16,6 +16,35 @@ from body_sim.magic import MagicMixin
 from body_sim.appearance import AppearanceMixin, Race, EyeAppearance, EarAppearance, EyeType, EarType, RACE_ANATOMY_PRESETS, get_race_preset, get_random_race_size
 
 
+@dataclass  
+class Body:
+    # ... существующие системы ...
+    
+    def __post_init__(self):
+        # Установка связей
+        if self.esophagus is None:
+            self.esophagus = Esophagus()
+        
+        # Связываем рот с пищеводом
+        mouth = self.mouth_system.primary
+        if mouth:
+            mouth.throat.esophagus_connection = self.esophagus
+        
+        # Связываем пищевод с желудком
+        stomach = self.stomach_system.primary
+        if stomach:
+            self.esophagus.stomach_connection = stomach
+            stomach.cardia.esophagus_connection = self.esophagus
+    
+    def tick(self, dt: float = 1.0):
+        # ... существующие тики ...
+        
+        # Новые системы
+        self.mouth_system.tick(dt)
+        self.stomach_system.tick(dt)
+        if self.esophagus:
+            self.esophagus.tick(dt)
+
 
 @dataclass
 class Body(MagicMixin, AppearanceMixin):
@@ -52,6 +81,12 @@ class Body(MagicMixin, AppearanceMixin):
     scrotums: List[Scrotum] = field(default_factory=list)
     anuses: List[Anus] = field(default_factory=list)
     uterus_system: Optional[UterusSystem] = None
+    # Новые системы
+    mouth_system: MouthSystem = field(default_factory=MouthSystem)
+    stomach_system: StomachSystem = field(default_factory=StomachSystem)
+    
+    # Связи
+    esophagus: Optional['Esophagus'] = field(default=None)
 
     active_sex: Optional[CrossBodyPenetration] = field(default=None, init=False)
     

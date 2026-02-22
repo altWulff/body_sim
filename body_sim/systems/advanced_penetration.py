@@ -13,38 +13,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 from body_sim.systems.penetration import PenetrableOrgan, InsertableObject, PenetrationData
+from body_sim.core.enums import PenetrationDepthZone
 
 
 console = Console()
 
-
-class PenetrationDepthZone(Enum):
-    """Анатомические зоны для глубинного проникновения."""
-    # Вагинальные
-    VAGINA_INTROITUS = auto()      # Вход
-    VAGINA_CANAL = auto()          # Канал
-    VAGINA_FORNIX = auto()         # Свода (глубоко)
-    CERVIX_EXTERNAL_OS = auto()    # Наружный зев шейки
-    CERVIX_CANAL = auto()          # Канал шейки
-    CERVIX_INTERNAL_OS = auto()    # Внутренний зев
-    UTERUS_CAVITY = auto()         # Полость матки
-    UTERUS_FUNDUS = auto()         # Дно матки
-    TUBE_ISTHMUS = auto()          # Устье трубы
-    TUBE_AMPULLA = auto()          # Ампулла трубы
-    TUBE_INFUNDIBULUM = auto()     # Воронка трубы
-    OVARY_SURFACE = auto()         # Поверхность яичника
-    OVARY_PARENCHYMA = auto()      # Внутрь яичника
-
-    # Уретральные
-    URETHRA_MEATUS = auto()        # Наружное отверстие
-    URETHRA_CANAL = auto()         # Канал
-    URETHRA_TRIGONE = auto()       # Треугольник мочевого пузыря
-
-    # Молочные
-    NIPPLE_SURFACE = auto()        # Поверхность соска
-    LACTIFEROUS_SINUS = auto()     # Молочный синус
-    LACTIFEROUS_DUCT = auto()      # Молочный проток
-    BREAST_ALVEOLI = auto()        # Дольки (глубоко)
 
 
 @dataclass
