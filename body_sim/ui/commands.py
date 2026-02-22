@@ -14,7 +14,7 @@ from body_sim.anatomy.genitals import Penis
 
 
 try:
-    from magic import (
+    from body_sim.magic import (
         MagicRenderer, 
         FluidRegenerationPerk, 
         OverfillCapacityPerk,
@@ -24,13 +24,21 @@ try:
         CumShot, VirilityBoost, SemenWeb,
         DualRelease, GenderFusion
     )
-    from magic.skills.milk_skills import get_female_skills
-    from magic.skills.cum_skills import get_male_skills
-    from magic.skills.hybrid_skills import get_futanari_skills
+    from body_sim.magic.skills.milk_skills import get_female_skills
+    from body_sim.magic.skills.cum_skills import get_male_skills
+    from body_sim.magic.skills.hybrid_skills import get_futanari_skills
     MAGIC_AVAILABLE = True
 except ImportError as e:
     MAGIC_AVAILABLE = False
     print(f"[dim]Magic system not available: {e}[/dim]")
+    
+try:
+    from body_sim.ui.anus_commands import register_anus_commands
+    ANUS_COMMANDS_AVAILABLE = True
+except ImportError as e:
+    ANUS_COMMANDS_AVAILABLE = False
+    print(f"[dim]Anus commands not available: {e}[/dim]")
+    
 
 console = Console()
 
@@ -2686,6 +2694,11 @@ def create_registry() -> CommandRegistry:
     except Exception as e:
         console.print(f"[yellow]Warning: Failed to load combat system: {e}[/yellow]")
 
-    return registry
-
+    # ============ ANUS / RECTUM / STOMACH PENETRATION COMMANDS ============
+    if ANUS_COMMANDS_AVAILABLE:
+        try:
+            register_anus_commands(registry, console)
+        except Exception as e:
+            console.print(f"[yellow]Warning: Failed to load anus commands: {e}[/yellow]")
+            
     return registry

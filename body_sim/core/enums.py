@@ -442,8 +442,6 @@ class AnusType(Enum):
     LOOSE = auto()              # Расширенный
     GAPING = auto()             # Раздутый
     PROLAPSED = auto()          # Выпадающий
-"
-
 
 # ========== События ==========
 class EventType(Enum):
@@ -626,7 +624,3 @@ class AnalSphincterState(Enum):
     GAPING = auto()
     STRETCHED = auto()
     PROLAPSED = auto()
-
-
-
-
