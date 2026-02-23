@@ -1,4 +1,4 @@
-# body_sim/characters/deep_reactions.py
+# body_sim/reactions/deep_reactions.py
 """
 Реакции персонажей на глубокое проникновение и пролапс.
 """

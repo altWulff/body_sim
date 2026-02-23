@@ -1954,8 +1954,7 @@ def cmd_appearance(args: List[str], ctx: CommandContext):
     if action == "race":
         if not action_args:
             console.print(f"[cyan]Current race: {app.race.value}[/cyan]")
-            console.print("[dim]Available races: human, elf, dark_elf, orc, dwarf, demon, angel, vampire,")
-            console.print("                   catgirl, foxgirl, wolfgirl, bunnygirl, dragon, slime, cyborg[/dim]")
+            console.print("[dim]Available races: human, elf, dark_elf, orc, dwarf, demon, angel, vampire, catgirl, foxgirl, wolfgirl, bunnygirl, dragon, slime, cyborg[/dim]")
             return
         
         try:
@@ -2731,16 +2730,13 @@ def create_registry() -> CommandRegistry:
 
     # Реакции (если доступны)
     try:
-        from body_sim.characters.breast_reactions import get_reaction_system, register_reaction_commands
-        register_reaction_commands(registry, get_reaction_system())
+        from body_sim.reactions import get_breast_reaction_system, register_breast_reaction_commands
+        register_breast_reaction_commands(registry, get_breast_reaction_system())
         console.print("[dim]Breasts reaction commands loaded[/dim]")
     except ImportError as e:
         console.print(f"[dim]Breasts reaction commands not available: {e}[/dim]")
-    except Exception as e:
-        console.print(f"[yellow]Warning: Failed to load breasts reaction commands: {e}[/yellow]")
-
     try:
-        from body_sim.characters.uterus_reactions import get_uterus_reaction_system, register_uterus_reaction_commands
+        from body_sim.reactions import get_uterus_reaction_system, register_uterus_reaction_commands
         register_uterus_reaction_commands(registry, get_uterus_reaction_system())
         console.print("[dim]Uterus reaction commands loaded[/dim]")
     except ImportError as e:

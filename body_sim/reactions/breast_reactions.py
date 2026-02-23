@@ -1,4 +1,4 @@
-# body_sim/characters/breast_reactions.py
+# body_sim/reactions/breast_reactions.py
 """
 Реакции персонажей на состояние груди.
 Поддерживает разные типы персонажей (Roxy, Misaka, и т.д.)
@@ -9,28 +9,11 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 import random
 
+from body_sim.core.enums import BreastEventType
+
 if TYPE_CHECKING:
     from body_sim.anatomy.breast import Breast
     from body_sim.body.body import Body
-    from body_sim.characters.roxy_migurdia import RoxyMigurdia
-
-
-class BreastEventType(Enum):
-    """Типы событий груди для реакций."""
-    START_LEAKING = auto()          # Начало утечки
-    STOP_LEAKING = auto()           # Остановка утечки
-    OVERPRESSURED = auto()          # Критическое давление
-    ENGORGED = auto()               # Переполнение молоком
-    CUP_INCREASE = auto()           # Увеличение размера
-    CUP_DECREASE = auto()           # Уменьшение размера
-    HIGH_SAG = auto()               # Сильное провисание
-    INSERTION_START = auto()        # Начало вставки предмета
-    INSERTION_DEEP = auto()         # Глубокая вставка
-    LACTATION_START = auto()        # Начало лактации
-    LACTATION_PEAK = auto()         # Пик лактации
-    NIPPLE_STRETCH = auto()         # Растяжение соска
-    NIPPLE_GAPING = auto()          # Раскрытие соска
-    INFLATION_MAX = auto()          # Максимальное растяжение
 
 
 @dataclass
@@ -474,7 +457,7 @@ class BreastReactionSystem:
 
 # ============ ИНТЕГРАЦИЯ С КОНСОЛЬЮ ============
 
-def register_reaction_commands(registry, reaction_system: BreastReactionSystem):
+def register_breast_reaction_commands(registry, reaction_system: BreastReactionSystem):
     """Зарегистрировать команды реакций."""
     from body_sim.ui.commands import Command, console
 
@@ -612,7 +595,7 @@ def register_reaction_commands(registry, reaction_system: BreastReactionSystem):
 # Глобальный экземпляр системы
 _reaction_system: Optional[BreastReactionSystem] = None
 
-def get_reaction_system() -> BreastReactionSystem:
+def get_breast_reaction_system() -> BreastReactionSystem:
     """Получить глобальный экземпляр системы реакций."""
     global _reaction_system
     if _reaction_system is None:

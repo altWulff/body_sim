@@ -1,4 +1,4 @@
-# body_sim/characters/uterus_reactions.py
+# body_sim/reactions/uterus_reactions.py
 """
 Реакции персонажей на состояние репродуктивной системы.
 Поддерживает разные типы персонажей (Roxy, Misaka, и т.д.)
@@ -9,61 +9,12 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 import random
 
+
+from body_sim.core.enums import UterusEventType
 if TYPE_CHECKING:
     from body_sim.anatomy.uterus import Uterus, Ovary, FallopianTube
     from body_sim.body.body import Body
 
-
-class UterusEventType(Enum):
-    """Типы событий матки для реакций."""
-    # Инфляция
-    INFLATION_START = auto()           # Начало инфляции
-    INFLATION_STRETCHED = auto()       # Растянута (1.5x)
-    INFLATION_DISTENDED = auto()       # Выпучена (2.0x)
-    INFLATION_HYPER = auto()           # Гипер-инфляция (2.5x)
-    INFLATION_RISK = auto()            # Риск разрыва (3.0x+)
-    INFLATION_ULTRA = auto()           # Ультра-растяжение (10x+)
-    INFLATION_MEGA = auto()            # Мега-растяжение (50x+)
-    INFLATION_GIGA = auto()            # Гига-растяжение (100x+)
-    INFLATION_TERA = auto()            # Тера-растяжение (250x+)
-    INFLATION_MAX = auto()             # Предельное растяжение (500x)
-
-    # Состояния матки
-    UTERUS_EMPTY = auto()              # Пустая матка
-    UTERUS_NORMAL = auto()             # Нормальное состояние
-    UTERUS_TENSE = auto()              # Напряжённая
-    UTERUS_OVERPRESSURED = auto()      # Переполненная
-    UTERUS_LEAKING = auto()            # Утечка через шейку
-
-    # Пролапс
-    PROLAPSE_DESCENDED = auto()        # Опущение матки
-    PROLAPSE_PARTIAL = auto()          # Частичный пролапс
-    PROLAPSE_COMPLETE = auto()         # Полный пролапс
-    PROLAPSE_EVERSIO = auto()          # Выворот матки
-
-    # Яичники
-    OVARY_ENLARGED = auto()            # Увеличение яичника
-    OVARY_PROLAPSED = auto()           # Пролапс яичника
-    OVARY_EVERTED = auto()             # Выворот яичника
-    OVARY_TORSION = auto()             # Перекрут яичника
-    OVARY_INFLATED = auto()            # Инфляция яичника
-
-    # Трубы
-    TUBE_STRETCHED = auto()            # Растяжение трубы
-    TUBE_DILATED = auto()              # Расширение трубы
-    TUBE_BLOCKED = auto()              # Закупорка трубы
-    TUBE_PROLAPSED = auto()            # Пролапс трубы
-    TUBE_EVERTED = auto()              # Выворот трубы с яичником
-
-    # Жидкость
-    FLUID_ADDED = auto()               # Добавление жидкости
-    FLUID_OVERFLOW = auto()            # Переполнение
-    FLUID_BACKFLOW = auto()            # Обратный поток
-
-    # Предметы
-    OBJECT_INSERTED = auto()           # Вставка предмета
-    OBJECT_DEEP = auto()               # Глубокая вставка
-    OBJECT_REMOVED = auto()            # Извлечение предмета
 
 
 @dataclass
