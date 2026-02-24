@@ -35,7 +35,6 @@ class RoxyMigurdia(FemaleBody):
     name: str = "Roxy Migurdia"
     sex: Sex = field(default=Sex.FEMALE, init=False)
     body_type: BodyType = BodyType.PETITE  # Миниатюрное телосложение
-    race: Race = Race.MIGURDIAN
     
     name: str = "Roxy Migurdia"
     sex: Sex = field(default=Sex.FEMALE, init=False)
