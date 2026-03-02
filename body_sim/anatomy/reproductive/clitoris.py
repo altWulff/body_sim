@@ -43,7 +43,6 @@ class Clitoris(AnatomicalComponent):
         
         self.is_transformed = True
         self.transformed_penis = Penis(
-            name=f"transformed_from_{self.component_id}",
             base_length=target_length, 
             base_girth=target_girth,
             is_transformed_clitoris=True, 
@@ -51,6 +50,7 @@ class Clitoris(AnatomicalComponent):
             sensitivity=self.sensitivity * 1.5
         )
         return self.transformed_penis
+        
 
     def revert_to_clitoris(self) -> None:
         self.is_transformed = False
