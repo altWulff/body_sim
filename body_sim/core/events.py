@@ -1,39 +1,31 @@
-# core/events.py
-
-
+# === core/events.py ===
 from __future__ import annotations
-from typing import Dict, List, Callable, Any, Type
+from typing import Dict, List, Callable, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 
 class EventType(Enum):
-    # Анатомические события
     PENETRATION = auto()
     FLUID_TRANSFER = auto()
     ORGASM = auto()
     OVULATION = auto()
     TRANSFORMATION = auto()
     MUSCLE_CONTRACTION = auto()
-    
-    # Состояния
     STATE_CHANGE = auto()
     MODIFIER_APPLIED = auto()
-    
-    # Системные
     COMPONENT_ADDED = auto()
     TICK = auto()
 
 @dataclass
 class Event:
     type: EventType
-    source: str  # component_id
+    source: str
     target: Optional[str] = None
     data: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
 
 class EventBus:
-    """Централизованная шина событий для decoupling компонентов"""
     def __init__(self):
         self._handlers: Dict[EventType, List[Callable[[Event], None]]] = {
             et: [] for et in EventType

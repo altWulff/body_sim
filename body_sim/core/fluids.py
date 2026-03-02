@@ -1,10 +1,8 @@
-# core/fluids.py
-
+# === core/fluids.py ===
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import List, Optional, Dict, Any
 from enum import Enum
-
-from body_sim.core.events import EventBus, Event, EventType
 
 class FluidType(Enum):
     WATER = "water"
@@ -18,13 +16,12 @@ class FluidType(Enum):
 @dataclass
 class Fluid:
     fluid_type: FluidType
-    volume: float  # ml
+    volume: float
     source_component: str
     properties: Dict[str, Any] = field(default_factory=dict)
-    dna_profile: Optional[str] = None  # Для генетики
+    dna_profile: Optional[str] = None
     
-    def merge(self, other: 'Fluid') -> 'Fluid':  # Строковые аннотации
-        """Смешивание жидкостей"""
+    def merge(self, other: 'Fluid') -> 'Fluid':
         total_vol = self.volume + other.volume
         return Fluid(
             fluid_type=self.fluid_type if self.volume > other.volume else other.fluid_type,
@@ -34,14 +31,12 @@ class Fluid:
         )
 
 class FluidContainer:
-    """Миксин для компонентов, способных содержать жидкости"""
     def __init__(self, max_capacity: float):
         self.max_capacity = max_capacity
         self.fluids: List[Fluid] = []
         self._leakage_rate = 0.0
         
     def add_fluid(self, fluid: Fluid) -> float:
-        """Returns overflow amount"""
         current = sum(f.volume for f in self.fluids)
         if current + fluid.volume <= self.max_capacity:
             self.fluids.append(fluid)
@@ -78,7 +73,6 @@ class FluidContainer:
         
     def transfer_to(self, target: 'FluidContainer', amount: float, 
                    fluid_type: FluidType = None, event_bus: Any = None):
-        """Передача жидкости с генерацией события"""
         removed = self.remove_fluid(amount, fluid_type)
         for fluid in removed:
             overflow = target.add_fluid(fluid)

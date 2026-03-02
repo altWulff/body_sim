@@ -3,7 +3,7 @@
 from rich.console import Console
 from rich.table import Table
 
-from body_sim.core.body import Body
+from body_sim.body.body import Body
 
 class CommandContext:
     def __init__(self, body: Body, console: Console):

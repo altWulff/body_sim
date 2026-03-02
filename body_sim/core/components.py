@@ -1,10 +1,10 @@
-# core/components.py
-
+# === core/components.py ===
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, Set
+from datetime import datetime
 import uuid
 
-from body_sim.core.events import EventBus
+from body_sim.core.events import EventBus, Event, EventType
 
 class ComponentInterface(ABC):
     @property
@@ -23,7 +23,6 @@ class ComponentInterface(ABC):
     
     @abstractmethod
     def get_state(self) -> Dict[str, Any]:
-        """Serialize state for rendering/saving"""
         pass
 
 class BaseComponent(ComponentInterface):
@@ -31,8 +30,9 @@ class BaseComponent(ComponentInterface):
         self._id = f"{name}_{uuid.uuid4().hex[:8]}"
         self._name = name
         self._modifiers: Dict[str, Any] = {}
-        self._connections: Set[str] = set()  # IDs связанных компонентов
-        self._parent_body: Optional[Body] = None
+        self._connections: Set[str] = set()
+        self._parent_body: Optional['Body'] = None
+        self._event_listeners: List[callable] = []
         
     @property
     def component_id(self) -> str:
@@ -44,9 +44,6 @@ class BaseComponent(ComponentInterface):
         
     def connect_to(self, other: ComponentInterface):
         self._connections.add(other.component_id)
-        
-    def disconnect_from(self, other: ComponentInterface):
-        self._connections.discard(other.component_id)
         
     def apply_modifier(self, key: str, value: Any, duration: float = None):
         self._modifiers[key] = {
@@ -61,7 +58,13 @@ class BaseComponent(ComponentInterface):
                    (datetime.now() - mod['applied_at']).seconds < mod['duration']):
             return mod['value']
         return default
-
+        
+    def update(self, delta_time: float, event_bus: EventBus):
+        expired = [k for k, m in self._modifiers.items() 
+                  if m['duration'] and (datetime.now() - m['applied_at']).seconds > m['duration']]
+        for k in expired:
+            del self._modifiers[k]
+            
     def get_state(self) -> Dict[str, Any]:
         return {
             'id': self._id,
@@ -69,12 +72,3 @@ class BaseComponent(ComponentInterface):
             'modifiers': list(self._modifiers.keys()),
             'connections': list(self._connections)
         }
-        
-    def update(self, delta_time: float, event_bus: EventBus):
-        # Cleanup expired modifiers
-        expired = []
-        for key, mod in self._modifiers.items():
-            if mod['duration'] and (datetime.now() - mod['applied_at']).seconds > mod['duration']:
-                expired.append(key)
-        for key in expired:
-            del self._modifiers[key]
