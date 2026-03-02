@@ -1,38 +1,26 @@
-# body_sim/anatomy/base.py
-"""
-Базовый класс для всех анатомических структур.
-"""
+# anatomy/base.py
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Callable, Any
+from body_sim.core.components import BaseComponent
+from body_sim.core.fluids import FluidContainer
+from body_sim.core.events import EventBus
 
 
-@dataclass
-class Genital:
-    """Базовый класс для всех гениталий."""
-    name: str = "unnamed"
-    sensitivity: float = 1.0
-    arousal: float = 0.0
-    pleasure: float = 0.0
-    
-    _listeners: Dict[str, List[Callable]] = field(default_factory=dict, repr=False)
-    
-    def stimulate(self, intensity: float = 0.1) -> None:
-        """Базовая стимуляция."""
-        self.arousal = min(1.0, self.arousal + intensity)
-        self.pleasure += intensity * self.sensitivity
-    
-    def tick(self, dt: float) -> None:
-        """Обновление состояния."""
-        self.arousal = max(0.0, self.arousal - 0.1 * dt)
-        self.pleasure = max(0.0, self.pleasure - 0.2 * dt)
-    
-    def on(self, event: str, callback: Callable[..., Any]) -> None:
-        """Подписаться на событие."""
-        self._listeners.setdefault(event, []).append(callback)
-    
-    def _emit(self, event: str, **data: Any) -> None:
-        """Вызвать обработчики события."""
-        for cb in self._listeners.get(event, []):
-            cb(self, **data)
+class AnatomicalComponent(BaseComponent, FluidContainer):
+    """Базовый класс для анатомических органов"""
+    def __init__(self, name: str, max_volume: float = 0):
+        BaseComponent.__init__(self, name)
+        FluidContainer.__init__(self, max_volume)
+        self.sensitivity = 1.0
+        self.current_stimulation = 0.0
+        self.pain_level = 0.0
+        
+    def stimulate(self, amount: float, source: str = None):
+        self.current_stimulation += amount * self.sensitivity
+        if self.current_stimulation > 100:
+            self.current_stimulation = 100
             
+    def update(self, delta_time: float, event_bus: EventBus):
+        super().update(delta_time, event_bus)
+        # Decay stimulation
+        self.current_stimulation *= (0.95 ** delta_time)
+        self.pain_level *= (0.90 ** delta_time)

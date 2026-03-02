@@ -1,78 +1,99 @@
-# body_sim/core/fluids.py
-"""
-Система жидкостей.
-"""
+# core/fluids.py
 
 from dataclasses import dataclass, field
-from typing import Dict, TYPE_CHECKING
+from typing import Dict, List, Optional, Any
+from enum import Enum
 
-if TYPE_CHECKING:
-    from body_sim.core.enums import FluidType
+from body_sim.core.events import EventBus, Event, EventType
 
-from body_sim.core.enums import FluidType
-
-
-@dataclass(frozen=True)
-class BreastFluid:
-    fluid_type: FluidType
-    viscosity: float
-    density: float
-
+class FluidType(Enum):
+    WATER = "water"
+    SALIVA = "saliva"
+    SEMEN = "semen"
+    MILK = "milk"
+    BLOOD = "blood"
+    GASTRIC_JUICE = "gastric_juice"
+    CUSTOM = "custom"
 
 @dataclass
-class FluidMixture:
-    components: Dict[FluidType, float] = field(default_factory=dict)
+class Fluid:
+    fluid_type: FluidType
+    volume: float  # ml
+    source_component: str
+    properties: Dict[str, Any] = field(default_factory=dict)
+    dna_profile: Optional[str] = None  # Для генетики
+    
+    def merge(self, other: 'Fluid') -> 'Fluid':  # Строковые аннотации
+        """Смешивание жидкостей"""
+        total_vol = self.volume + other.volume
+        return Fluid(
+            fluid_type=self.fluid_type if self.volume > other.volume else other.fluid_type,
+            volume=total_vol,
+            source_component=f"mixed:{self.source_component}+{other.source_component}",
+            properties={**self.properties, **other.properties}
+        )
 
-    def total(self) -> float:
-        return sum(self.components.values())
-
-    def add(self, fluid: 'FluidType | BreastFluid', amount: float) -> None:
-        """Добавить жидкость - принимает enum или объект."""
-        if isinstance(fluid, BreastFluid):
-            fluid_type = fluid.fluid_type
-        else:
-            fluid_type = fluid
+class FluidContainer:
+    """Миксин для компонентов, способных содержать жидкости"""
+    def __init__(self, max_capacity: float):
+        self.max_capacity = max_capacity
+        self.fluids: List[Fluid] = []
+        self._leakage_rate = 0.0
         
-        self.components[fluid_type] = self.components.get(fluid_type, 0.0) + amount
-
-    def remove(self, amount: float) -> None:
-        total = self.total()
-        if total <= 0:
-            return
-        ratio = amount / total
-        actual = min(amount, total)
-        for ft in list(self.components):
-            self.components[ft] -= self.components[ft] * ratio
-            if self.components[ft] <= 0:
-                del self.components[ft]
-        return actual
-    
-
-    def viscosity(self, defs: Dict[FluidType, 'BreastFluid']) -> float:
-        total = self.total()
-        if total == 0:
+    def add_fluid(self, fluid: Fluid) -> float:
+        """Returns overflow amount"""
+        current = sum(f.volume for f in self.fluids)
+        if current + fluid.volume <= self.max_capacity:
+            self.fluids.append(fluid)
             return 0.0
-        return sum(
-            (v / total) * defs[k].viscosity
-            for k, v in self.components.items()
-        )
-    
-    def density(self, defs: Dict[FluidType, 'BreastFluid']) -> float:
-        total = self.total()
-        if total == 0:
-            return 1.0
-        return sum(
-            (v / total) * defs[k].density
-            for k, v in self.components.items()
-        )
-
-
-# Дефолтные определения жидкостей
-FLUID_DEFS: Dict[FluidType, BreastFluid] = {
-    FluidType.MILK: BreastFluid(FluidType.MILK, 2.0, 1.03),
-    FluidType.CUM: BreastFluid(FluidType.CUM, 2.5, 1.03),
-    FluidType.WATER: BreastFluid(FluidType.WATER, 0.7, 1.0),
-    FluidType.HONEY: BreastFluid(FluidType.HONEY, 6.0, 1.42),
-    FluidType.OIL: BreastFluid(FluidType.OIL, 3.0, 0.92),
-    FluidType.CUSTOM: BreastFluid(FluidType.CUSTOM, 8.0, 1.5),
-}
+        else:
+            available = self.max_capacity - current
+            if available > 0:
+                fluid.volume = available
+                self.fluids.append(fluid)
+            return fluid.volume - available
+            
+    def remove_fluid(self, amount: float, fluid_type: FluidType = None) -> List[Fluid]:
+        removed = []
+        remaining = amount
+        
+        for fluid in self.fluids[:]:
+            if remaining <= 0:
+                break
+            if fluid_type is None or fluid.fluid_type == fluid_type:
+                if fluid.volume <= remaining:
+                    removed.append(fluid)
+                    self.fluids.remove(fluid)
+                    remaining -= fluid.volume
+                else:
+                    fluid.volume -= remaining
+                    removed.append(Fluid(
+                        fluid_type=fluid.fluid_type,
+                        volume=remaining,
+                        source_component=fluid.source_component,
+                        properties=fluid.properties.copy()
+                    ))
+                    remaining = 0
+        return removed
+        
+    def transfer_to(self, target: 'FluidContainer', amount: float, 
+                   fluid_type: FluidType = None, event_bus: Any = None):
+        """Передача жидкости с генерацией события"""
+        removed = self.remove_fluid(amount, fluid_type)
+        for fluid in removed:
+            overflow = target.add_fluid(fluid)
+            if event_bus and hasattr(self, 'component_id'):
+                from body_sim.core.events import Event, EventType
+                event_bus.emit(Event(
+                    type=EventType.FLUID_TRANSFER,
+                    source=self.component_id,
+                    target=target.component_id if hasattr(target, 'component_id') else 'unknown',
+                    data={
+                        'fluid_type': fluid.fluid_type.value,
+                        'volume': fluid.volume - overflow,
+                        'overflow': overflow
+                    }
+                ))
+                
+    def get_fullness(self) -> float:
+        return sum(f.volume for f in self.fluids) / self.max_capacity if self.max_capacity > 0 else 0.0

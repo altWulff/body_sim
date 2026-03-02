@@ -1,78 +1,99 @@
-# body_sim/__main__.py
-"""
-Точка входа: python -m body_sim
-"""
+# main.py
 
-import sys
-from body_sim.ui.console import run_console
-from body_sim.body.factory import BodyFactory
-from body_sim.systems.events import EventfulBody
-from body_sim.characters.roxy_migurdia import RoxyMigurdia
+from rich.console import Console
+from rich.prompt import Prompt
 
-def create_demo_bodies():
-    """Создание демонстрационных тел."""
-    from body_sim.core.enums import BodyType, TesticleSize, FluidType
+
+from body_sim.appearance.core import Race
+from body_sim.core.body import Body
+from body_sim.systems.commands import CommandRegistry, CommandContext
+from body_sim.systems.impl import register_all_commands
+from body_sim.appearance.core import AppearanceConfig, AppearanceComponent
+from body_sim.anatomy.reproductive.system import ReproductiveSystem
+from body_sim.anatomy.breasts import Breasts
+from body_sim.anatomy.digestive import DigestiveSystem
+
+
+
+def create_character(name: str, race: Race, gender: str = "female") -> Body:
+    body = Body(name, gender)
     
-    bodies = []
-    
-    # Мужчина
-    male = BodyFactory.create_male(
-        name="Alex",
-        body_type=BodyType.MUSCULAR,
-        penis_size=16.0,
-        testicle_size=TesticleSize.LARGE
+    # Appearance
+    config = AppearanceConfig(
+        race=race,
+        height_cm=160,
+        weight_kg=55,
+        skin_tone="fair",
+        eye_color="blue",
+        eye_shape="almond",
+        ear_type="human",
+        ear_length=1.0
     )
-    male.scrotums[0].add_testicle_fluid_production(0, FluidType.CUM, 0.05)
-    bodies.append(EventfulBody(male))
     
-    # Женщина
-    female = BodyFactory.create_female(
-        name="Maria",
-        body_type=BodyType.CURVY,
-        breast_cup="D",
-        vagina_depth=11.0
-    )
-    bodies.append(EventfulBody(female))
+    if race == Race.DRAGON:
+        config.height_cm = 120
+        config.eye_shape = "reptilian"
+        config.special_traits = ["horns", "tail"]
+    elif race == Race.WOLF:
+        config.ear_type = "furry"
+        config.ear_length = 2.0
+        config.special_traits = ["tail", "fur"]
+    elif race == Race.ELF:
+        config.ear_type = "pointed"
+        config.ear_length = 1.8
+        config.eye_color = "purple"
+        
+    body.appearance = AppearanceComponent(config)
+    body.add_system("appearance", body.appearance)
     
-    # Футанари
-    futa = BodyFactory.create_futanari(
-        name="Rin",
-        body_type=BodyType.AMAZON,
-        breast_cup="F",
-        penis_size=20.0,
-        has_scrotum=True,
-        internal_testicles=True
-    )
-    bodies.append(EventfulBody(futa))
+    # Reproductive
+    repro = ReproductiveSystem()
+    repro.breasts = Breasts()
     
-    #create Roxy
-    roxy = RoxyMigurdia()
-    bodies.append(EventfulBody(roxy))
+    if race == Race.WOLF:
+        repro.breasts.add_row(2.0)  # Вторая пара для волка
+        
+    body.reproductive = repro
+    body.add_system("reproductive", repro)
     
-    return bodies
+    # Digestive
+    digestive = DigestiveSystem()
+    body.digestive = digestive
+    body.add_system("digestive", digestive)
+    
+    return body
 
 def main():
-    """Главная функция."""
-    import argparse
+    console = Console()
     
-    parser = argparse.ArgumentParser(description="Breast & Body Simulation")
-    parser.add_argument("--demo", "-d", action="store_true", help="Run demo")
-    parser.add_argument("--create", "-c", choices=['male', 'female', 'futa'])
+    # Setup
+    registry = CommandRegistry()
+    register_all_commands(registry)
     
-    args = parser.parse_args()
+    # Character creation
+    console.print("[blue]BodySim 2.0 - Architecture Demo[/blue]")
+    name = Prompt.ask("Name", default="Test")
+    race_choice = Prompt.ask("Race", choices=["human", "elf", "wolf", "dragon"], default="human")
     
-    if args.create:
-        bodies = [BodyFactory.quick_create(args.create)]
-    else:
-        bodies = create_demo_bodies()
+    body = create_character(name, Race[race_choice.upper()])
+    ctx = CommandContext(body, console)
     
-    print(f"Created {len(bodies)} bodies")
+    console.print(f"\n[green]Created {race_choice} character: {name}[/green]")
+    console.print("Type 'help' for commands, 'exit' to quit\n")
     
-    if args.demo:
-        from body_sim.ui.demo import run_demo
-        run_demo(bodies)
-    
-    run_console(bodies)
+    # Main loop
+    while True:
+        try:
+            cmd = Prompt.ask(f"[{body.name}]")
+            if cmd in ["exit", "quit"]:
+                break
+            if cmd == "help":
+                console.print(registry.get_help())
+            else:
+                registry.execute(ctx, cmd)
+                body.update(0.1)  # Advance time
+        except (KeyboardInterrupt, EOFError):
+            break
 
 if __name__ == "__main__":
     main()
