@@ -10,9 +10,9 @@ from rich.panel import Panel
 from body_sim.commands.base import CommandRegistry, CommandContext
 from body_sim.commands.fluids import find_component_by_path
 from body_sim.core.fluids import Fluid, FluidType
-from body_sim.anatomy.breasts import BreastComponent, CupSize
+from body_sim.anatomy.chest import CupSize, Breasts
 
-def get_breast(ctx: CommandContext, side: str = "left") -> Optional[BreastComponent]:
+def get_breast(ctx: CommandContext, side: str = "left") -> Optional[Breasts]:
     """Получить грудь по стороне."""
     if not hasattr(ctx.body, 'breasts') or ctx.body.breasts is None:
         ctx.console.print("[red]No breasts[/red]")

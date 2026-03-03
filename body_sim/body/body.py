@@ -13,7 +13,8 @@ from body_sim.anatomy.reproductive.clitoris import Clitoris
 from body_sim.anatomy.reproductive.penis import Penis
 from body_sim.anatomy.reproductive.scrotum import Scrotum
 from body_sim.anatomy.digestive import DigestiveSystem
-from body_sim.anatomy.breasts import Breasts, CupSize  # Используем существующий класс
+# Обновленный импорт груди
+from body_sim.anatomy.chest import Breasts, CupSize
 
 
 class Sex(Enum):
@@ -59,7 +60,7 @@ class Body:
         # Инициализация груди для женских тел
         if self.sex in (Sex.FEMALE, Sex.FUTANARI):
             cup_size = self._determine_breast_size()
-            self.breasts = Breasts(cup_size)  # Используем существующий класс
+            self.breasts = Breasts(cup_size)
         
         if self.reproductive_system is None:
             self._setup_reproductive()
@@ -113,7 +114,7 @@ class Body:
     def transform_clitoris_to_penis(self, clitoris_idx: int = 0, 
                                     target_length: float = 10.0,
                                     target_girth: float = 8.0) -> bool:
-        if not self.reproductive_system or clitoris_idx >= len(self.reproductive_system.clitorises):
+        if not self.reproductive_system or cloris_idx >= len(self.reproductive_system.clitorises):
             return False
             
         clitoris = self.reproductive_system.clitorises[clitoris_idx]
@@ -129,6 +130,7 @@ class Body:
         return True
         
     def stimulate(self, region: str, index: int = 0, intensity: float = 0.1):
+        """Стимулировать различные части тела."""
         if not self.reproductive_system:
             return
             
@@ -139,8 +141,9 @@ class Body:
         elif region == "vagina" and index < len(self.reproductive_system.vaginas):
             self.reproductive_system.vaginas[index].stimulate(intensity)
         elif region == "breast" and self.breasts:
-            breast = self.breasts.left if index == 0 else self.breasts.right
-            breast.stimulate(intensity)
+            # Используем стимуляцию через breasts с кросс-реакцией
+            side = "left" if index == 0 else "right"
+            self.breasts.stimulate(side, intensity)
             
     def ejaculate(self, penis_index: int = 0) -> Dict[str, Any]:
         if not self.reproductive_system or penis_index >= len(self.reproductive_system.penises):
