@@ -6,6 +6,45 @@ from body_sim.core.events import Event, EventType  # Добавлен импор
 
 
 def register_all_commands(registry: CommandRegistry):
+        # --- Digestive commands ---
+    def cmd_mouth_open(ctx: CommandContext, amount: str = "3.0"):
+        if ctx.body.digestive_system:
+            ctx.body.digestive_system.mouth.open(float(amount))
+            ctx.console.print(f"[green]Mouth opened: {amount}cm[/green]")
+            
+    def cmd_mouth_show(ctx: CommandContext):
+        if not ctx.body.digestive_system:
+            return
+        m = ctx.body.digestive_system.mouth
+        ctx.console.print(f"Mouth: {m.jaw_opening:.1f}cm open, "
+                        f"contents: {m.get_fullness()*100:.0f}%")
+            
+    def cmd_stomach_show(ctx: CommandContext):
+        if not ctx.body.digestive_system:
+            return
+        s = ctx.body.digestive_system.stomach
+        ctx.console.print(f"Stomach: {s.get_fullness()*100:.1f}% full, "
+                        f"pH: {s.ph_level:.1f}")
+            
+    def cmd_anus_show(ctx: CommandContext):
+        if not ctx.body.digestive_system:
+            return
+        a = ctx.body.digestive_system.anus
+        ctx.console.print(f"Anus: tone {a.sphincter_tone:.0%}, "
+                        f"diameter {a.diameter:.1f}cm")
+            
+    def cmd_anus_connect_stomach(ctx: CommandContext):
+        """Установить прямое соединение ануса с желудком (альтернативная анатомия)."""
+        if ctx.body.digestive_system:
+            ctx.body.digestive_system.anus.connect_to_stomach(
+                ctx.body.digestive_system.stomach
+            )
+            ctx.console.print("[yellow]Anus connected directly to stomach[/yellow]")
+            
+    def cmd_anus_penetration(ctx: CommandContext, size: str, depth: str = "5.0"):
+        if ctx.body.digestive_system:
+            ctx.body.digestive_system.anus.penetrate(float(size), float(depth))
+            ctx.console.print(f"[green]Anus penetrated: {size}cm[/green]")
     
     # --- Reproductive commands ---
     def cmd_uterus_show(ctx: CommandContext):
@@ -214,6 +253,12 @@ def register_all_commands(registry: CommandRegistry):
         ctx.console.print(table)
         
     # Register all
+    registry.register("mouth.open", cmd_mouth_open, "Open mouth [cm]")
+    registry.register("mouth.show", cmd_mouth_show, "Show mouth status")
+    registry.register("stomach.show", cmd_stomach_show, "Show stomach")
+    registry.register("anus.show", cmd_anus_show, "Show anus")
+    registry.register("anus.connect_stomach", cmd_anus_connect_stomach, "Connect anus to stomach")
+    registry.register("anus.penetrate", cmd_anus_penetration, "Penetrate anus (size) [depth]")
     registry.register("uterus.show", cmd_uterus_show, "Show all uteri status")
     registry.register("uterus.fullness", cmd_uterus_fullness, "Show uterus contents by index")
     registry.register("uterus.inflate", cmd_uterus_inflate, "Inflate uterus (ratio) [index]")
@@ -228,3 +273,4 @@ def register_all_commands(registry: CommandRegistry):
     registry.register("scrotum.show", cmd_scrotum_show, "Show scrotums")
     registry.register("appearance.show", cmd_appearance_show, "Show appearance")
     registry.register("body.state", cmd_body_state, "Show body state")
+    

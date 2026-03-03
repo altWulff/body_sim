@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 
 from body_sim.anatomy.base import AnatomicalComponent
-from body_sim.core.fluids import FluidType
+from body_sim.core.fluids import FluidType, Fluid
 from body_sim.core.events import EventBus
 # from body_sim.anatomy.reproductive.ovaries import Gamete
 
@@ -49,7 +49,14 @@ class FallopianTube(AnatomicalComponent):
         actual = min(amount, space)
         self.contained_fluid += actual
         return actual
-        
+    
+    def add_fluid(self, fluid: Fluid) -> float:
+        """Добавить жидкость в трубу."""
+        available = self.max_fluid_capacity - self.contained_fluid
+        actual = min(fluid.volume, available)
+        self.contained_fluid += actual
+        return fluid.volume - actual  # возвращаем overflow
+
     def update(self, delta_time: float, event_bus: EventBus):
         super().update(delta_time, event_bus)
         if self.contained_fluid > 0 and self.cilia_activity > 0:

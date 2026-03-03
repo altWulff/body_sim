@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 
 from body_sim.anatomy.base import AnatomicalComponent
+from body_sim.core.fluids import Fluid
 from body_sim.core.events import EventBus
 
 # @dataclass
@@ -34,7 +35,16 @@ class Ovary(AnatomicalComponent):
         self.prolapse_degree = max(0.0, self.prolapse_degree - amount)
         if self.prolapse_degree < 0.3:
             self.is_everted = False
-            
+
+    def add_fluid(self, fluid: Fluid) -> float:
+        """Добавить жидкость в яичник."""
+        available = self.max_capacity - sum(f.volume for f in self.fluids)
+        actual = min(fluid.volume, available)
+        if actual > 0:
+            fluid.volume = actual
+            super().add_fluid(fluid)  # вызываем AnatomicalComponent.add_fluid
+        return fluid.volume - actual
+    
     def update(self, delta_time: float, event_bus: EventBus):
         super().update(delta_time, event_bus)
         if self.is_everted:

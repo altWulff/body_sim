@@ -6,6 +6,8 @@ from body_sim.body.body import Body, Sex
 from body_sim.appearance.core import Race
 from body_sim.systems.commands import CommandContext, CommandRegistry
 from body_sim.systems.impl import register_all_commands
+from body_sim.systems.fluid_commands import register_fluid_commands
+
 
 def main():
     console = Console()
@@ -19,6 +21,7 @@ def main():
     ctx = CommandContext(body, console)
     registry = CommandRegistry()
     register_all_commands(registry)
+    register_fluid_commands(registry)
     
     console.print(f"Created: {body.name} ({body.sex.name}, {body.race.value})")
     

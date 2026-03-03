@@ -193,22 +193,58 @@ class Uterus(AnatomicalComponent):
         else:
             self.inflation_status = UterusInflationStatus.RUPTURED
             
-    def add_fluid(self, fluid: Fluid, amount: float) -> float:
-        if amount <= 0:
+    # === anatomy/reproductive/uterus.py ===
+
+    def add_fluid(self, fluid: Fluid) -> float:
+        """Добавить жидкость с распределением по трубам."""
+        if fluid.volume <= 0:
             return 0.0
             
-        to_uterus = amount * (1 - self.tube_fill_ratio)
-        to_tubes = amount * self.tube_fill_ratio
+        # Распределение: часть в матку, часть в трубы
+        to_uterus = fluid.volume * (1 - self.tube_fill_ratio)
+        to_tubes = fluid.volume * self.tube_fill_ratio
         
-        overflow = super().add_fluid(fluid)
+        # Создаем копию жидкости для матки с нужным объемом
+        uterus_fluid = Fluid(
+            fluid_type=fluid.fluid_type,
+            volume=to_uterus,
+            source_component=fluid.source_component,
+            properties=fluid.properties.copy()
+        )
         
-        if self.left_tube:
-            self.left_tube.contained_fluid += to_tubes / 2
-        if self.right_tube:
-            self.right_tube.contained_fluid += to_tubes / 2
+        overflow = super().add_fluid(uterus_fluid)
+        
+        # Остаток от переполнения матки идет в трубы
+        if overflow > 0:
+            to_tubes += overflow
+        
+        # Распределяем в трубы
+        if to_tubes > 0:
+            per_tube = to_tubes / 2
             
+            if self.left_tube:
+                self.left_tube.contained_fluid += per_tube
+                # Передача в яичник если есть связь
+                if hasattr(self.left_tube, 'ovary') and self.left_tube.ovary:
+                    tube_fluid = Fluid(
+                        fluid_type=fluid.fluid_type,
+                        volume=per_tube,
+                        source_component=fluid.source_component
+                    )
+                    self.left_tube.ovary.add_fluid(tube_fluid)
+                    
+            if self.right_tube:
+                self.right_tube.contained_fluid += per_tube
+                if hasattr(self.right_tube, 'ovary') and self.right_tube.ovary:
+                    tube_fluid = Fluid(
+                        fluid_type=fluid.fluid_type,
+                        volume=per_tube,
+                        source_component=fluid.source_component
+                    )
+                    self.right_tube.ovary.add_fluid(tube_fluid)
+                
         return overflow
-        
+    
     def stretch(self, ratio: float) -> bool:
         return self.walls.stretch(ratio)
         

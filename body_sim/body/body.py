@@ -12,6 +12,9 @@ from body_sim.anatomy.reproductive.uterus import Uterus
 from body_sim.anatomy.reproductive.clitoris import Clitoris
 from body_sim.anatomy.reproductive.penis import Penis
 from body_sim.anatomy.reproductive.scrotum import Scrotum
+from body_sim.anatomy.digestive import DigestiveSystem
+
+
 
 class Sex(Enum):
     NONE = auto()
@@ -30,6 +33,7 @@ class Body:
     
     event_bus: EventBus = field(default_factory=EventBus, repr=False)
     appearance: Optional[AppearanceComponent] = None
+    digestive_system: Optional[DigestiveSystem] = None
     reproductive_system: Optional[ReproductiveSystem] = None
     
     _listeners: Dict[str, List] = field(default_factory=dict, repr=False)
@@ -47,7 +51,7 @@ class Body:
                 ear_length=1.0
             )
             self.appearance = AppearanceComponent(config)
-            
+        self.digestive_system = DigestiveSystem() 
         if self.reproductive_system is None:
             self._setup_reproductive()
             
@@ -123,6 +127,8 @@ class Body:
         return uterus.stretch(ratio)
         
     def update(self, delta_time: float = 1.0):
+        if self.digestive_system:
+            self.digestive_system.update(delta_time, self.event_bus)
         if self.reproductive_system:
             self.reproductive_system.update(delta_time, self.event_bus)
             
@@ -132,5 +138,6 @@ class Body:
             'sex': self.sex.name,
             'race': self.race.value,
             'appearance': self.appearance.get_state() if self.appearance else None,
+            'digestive': self.digestive_system.get_state() if self.digestive_system else None,
             'reproductive': self.reproductive_system.get_state() if self.reproductive_system else None
         }
