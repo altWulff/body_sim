@@ -1,19 +1,20 @@
-# body_sim/systems/impl.py
-# systems/impl.py
+# body_sim/commands/core.py
 
 from rich.table import Table
-from body_sim.systems.commands import CommandRegistry, CommandContext
+from body_sim.commands.base import CommandRegistry, CommandContext
 from body_sim.core.events import Event, EventType
 
-
 def register_all_commands(registry: CommandRegistry):
-    # --- Digestive commands (Пищеварительная система) ---
+    
+    # --- Digestive commands ---
     def cmd_mouth_open(ctx: CommandContext, amount: str = "3.0"):
+        """Открыть рот: mouth.open [cm]"""
         if ctx.body.digestive_system:
             ctx.body.digestive_system.mouth.open(float(amount))
             ctx.console.print(f"[green]Mouth opened: {amount}cm[/green]")
             
     def cmd_mouth_show(ctx: CommandContext):
+        """Показать состояние рта"""
         if not ctx.body.digestive_system:
             ctx.console.print("[red]No digestive system[/red]")
             return
@@ -22,23 +23,35 @@ def register_all_commands(registry: CommandRegistry):
                         f"contents: {m.get_fullness()*100:.0f}%")
             
     def cmd_stomach_show(ctx: CommandContext):
+        """Показать состояние желудка"""
         if not ctx.body.digestive_system:
             ctx.console.print("[red]No digestive system[/red]")
             return
         s = ctx.body.digestive_system.stomach
-        ctx.console.print(f"Stomach: {s.get_fullness()*100:.1f}% full, "
-                        f"pH: {s.ph_level:.1f}")
+        table = Table(title="Stomach")
+        table.add_column("Parameter", style="cyan")
+        table.add_column("Value", style="yellow")
+        table.add_row("Fullness", f"{s.get_fullness()*100:.1f}%")
+        table.add_row("pH Level", f"{s.ph_level:.1f}")
+        table.add_row("Volume", f"{s.filled:.1f}ml / {s.max_capacity:.1f}ml")
+        ctx.console.print(table)
             
     def cmd_anus_show(ctx: CommandContext):
+        """Показать состояние ануса"""
         if not ctx.body.digestive_system:
             ctx.console.print("[red]No digestive system[/red]")
             return
         a = ctx.body.digestive_system.anus
-        ctx.console.print(f"Anus: tone {a.sphincter_tone:.0%}, "
-                        f"diameter {a.diameter:.1f}cm")
+        table = Table(title="Anus")
+        table.add_column("Parameter", style="cyan")
+        table.add_column("Value", style="yellow")
+        table.add_row("Tone", f"{a.sphincter_tone:.0%}")
+        table.add_row("Diameter", f"{a.diameter:.1f}cm")
+        table.add_row("Connected to Stomach", str(a._connected_to_stomach))
+        ctx.console.print(table)
             
     def cmd_anus_connect_stomach(ctx: CommandContext):
-        """Установить прямое соединение ануса с желудком."""
+        """Установить прямое соединение ануса с желудком"""
         if ctx.body.digestive_system:
             ctx.body.digestive_system.anus.connect_to_stomach(
                 ctx.body.digestive_system.stomach
@@ -46,11 +59,12 @@ def register_all_commands(registry: CommandRegistry):
             ctx.console.print("[yellow]Anus connected directly to stomach[/yellow]")
             
     def cmd_anus_penetration(ctx: CommandContext, size: str, depth: str = "5.0"):
+        """Проникновение в анус: anus.penetrate <size> [depth]"""
         if ctx.body.digestive_system:
             ctx.body.digestive_system.anus.penetrate(float(size), float(depth))
             ctx.console.print(f"[green]Anus penetrated: {size}cm[/green]")
     
-    # --- Reproductive commands (Репродуктивная система) ---
+    # --- Reproductive commands ---
     def cmd_uterus_show(ctx: CommandContext):
         """Показать состояние всех маток"""
         if not ctx.body.reproductive_system or not ctx.body.reproductive_system.uteri:
@@ -61,16 +75,13 @@ def register_all_commands(registry: CommandRegistry):
             table = Table(title=f"Uterus {idx}")
             table.add_column("Parameter", style="cyan")
             table.add_column("Value", style="yellow")
-            table.add_row("Status", u.inflation_status.value if hasattr(u, 'inflation_status') else "N/A")
-            if hasattr(u, 'walls'):
-                table.add_row("Wall Stretch", f"{u.walls.stretch_ratio:.1f}x")
-            table.add_row("Inflation", f"{u.inflation_ratio:.1f}x" if hasattr(u, 'inflation_ratio') else "N/A")
+            table.add_row("Status", u.inflation_status.value)
+            table.add_row("Wall Stretch", f"{u.walls.stretch_ratio:.1f}x")
+            table.add_row("Inflation", f"{u.inflation_ratio:.1f}x")
             table.add_row("Fullness", f"{u.get_fullness()*100:.1f}%")
-            if hasattr(u, 'cervix'):
-                table.add_row("Cervix Dilation", f"{u.cervix.current_dilation:.1f}cm")
-                table.add_row("Cervix Open", str(u.cervix.is_open))
-            if hasattr(u, 'state'):
-                table.add_row("Prolapse", u.state.name if u.state else "normal")
+            table.add_row("Cervix Dilation", f"{u.cervix.current_dilation:.1f}cm")
+            table.add_row("Cervix Open", str(u.cervix.is_open))
+            table.add_row("Prolapse", u.state.name if u.state else "normal")
             ctx.console.print(table)
         
     def cmd_uterus_fullness(ctx: CommandContext, idx: str = "0"):
@@ -117,23 +128,23 @@ def register_all_commands(registry: CommandRegistry):
             return
             
         for idx, u in enumerate(ctx.body.reproductive_system.uteri):
-            if hasattr(u, 'left_ovary') and u.left_ovary:
+            if u.left_ovary:
                 table = Table(title=f"Ovary (Uterus {idx}, Left)")
+                table.add_column("Parameter", style="cyan")
+                table.add_column("Value", style="yellow")
                 table.add_row("Side", u.left_ovary.side)
-                if hasattr(u.left_ovary, 'follicle_count'):
-                    table.add_row("Follicles", str(u.left_ovary.follicle_count))
-                if hasattr(u.left_ovary, 'hormone_production'):
-                    table.add_row("Hormone", f"{u.left_ovary.hormone_production:.2f}")
+                table.add_row("Follicles", str(u.left_ovary.follicle_count))
+                table.add_row("Hormone", f"{u.left_ovary.hormone_production:.2f}")
                 table.add_row("Everted", str(u.left_ovary.is_everted))
                 ctx.console.print(table)
                 
-            if hasattr(u, 'right_ovary') and u.right_ovary:
+            if u.right_ovary:
                 table = Table(title=f"Ovary (Uterus {idx}, Right)")
+                table.add_column("Parameter", style="cyan")
+                table.add_column("Value", style="yellow")
                 table.add_row("Side", u.right_ovary.side)
-                if hasattr(u.right_ovary, 'follicle_count'):
-                    table.add_row("Follicles", str(u.right_ovary.follicle_count))
-                if hasattr(u.right_ovary, 'hormone_production'):
-                    table.add_row("Hormone", f"{u.right_ovary.hormone_production:.2f}")
+                table.add_row("Follicles", str(u.right_ovary.follicle_count))
+                table.add_row("Hormone", f"{u.right_ovary.hormone_production:.2f}")
                 table.add_row("Everted", str(u.right_ovary.is_everted))
                 ctx.console.print(table)
         
@@ -144,10 +155,10 @@ def register_all_commands(registry: CommandRegistry):
             return
             
         for idx, u in enumerate(ctx.body.reproductive_system.uteri):
-            if hasattr(u, 'left_tube') and u.left_tube:
+            if u.left_tube:
                 ctx.console.print(f"Uterus {idx} - Left Tube: {u.left_tube.current_length:.1f}cm, "
                                 f"fluid: {u.left_tube.contained_fluid:.1f}ml")
-            if hasattr(u, 'right_tube') and u.right_tube:
+            if u.right_tube:
                 ctx.console.print(f"Uterus {idx} - Right Tube: {u.right_tube.current_length:.1f}cm, "
                                 f"fluid: {u.right_tube.contained_fluid:.1f}ml")
             
@@ -159,7 +170,9 @@ def register_all_commands(registry: CommandRegistry):
             
         for idx, v in enumerate(ctx.body.reproductive_system.vaginas):
             table = Table(title=f"Vagina {idx}")
-            table.add_row("Type", v.vagina_type.type_name if hasattr(v, 'vagina_type') else "N/A")
+            table.add_column("Parameter", style="cyan")
+            table.add_column("Value", style="yellow")
+            table.add_row("Type", v.vagina_type.type_name)
             table.add_row("Depth", f"{v.current_depth:.1f}cm")
             table.add_row("Width", f"{v.current_width:.1f}cm")
             table.add_row("Stretch", f"{v.current_stretch:.2f}x")
@@ -168,7 +181,7 @@ def register_all_commands(registry: CommandRegistry):
             ctx.console.print(table)
             
     def cmd_vagina_stimulate(ctx: CommandContext, intensity: str = "0.5", idx: str = "0"):
-        """Стимуляция вагины: vagina.stimulate [intensity] [index]"""
+        """Стимуляция влагалища: vagina.stimulate [intensity] [index]"""
         if not ctx.body.reproductive_system:
             ctx.console.print("[red]No reproductive system[/red]")
             return
@@ -188,11 +201,13 @@ def register_all_commands(registry: CommandRegistry):
             
         for idx, c in enumerate(ctx.body.reproductive_system.clitorises):
             table = Table(title=f"Clitoris {idx}")
+            table.add_column("Parameter", style="cyan")
+            table.add_column("Value", style="yellow")
             table.add_row("Length", f"{c.current_length:.1f}cm")
             table.add_row("Erect", str(c.is_erect))
-            table.add_row("Enlarged", str(c.is_enlarged) if hasattr(c, 'is_enlarged') else "N/A")
-            table.add_row("Can Transform", str(c.can_transform) if hasattr(c, 'can_transform') else "N/A")
-            table.add_row("Transformed", str(c.is_transformed) if hasattr(c, 'is_transformed') else "N/A")
+            table.add_row("Enlarged", str(c.is_enlarged))
+            table.add_row("Can Transform", str(c.can_transform))
+            table.add_row("Transformed", str(c.is_transformed))
             ctx.console.print(table)
             
     def cmd_clitoris_transform(ctx: CommandContext, idx: str = "0", length: str = "10.0", girth: str = "8.0"):
@@ -203,7 +218,7 @@ def register_all_commands(registry: CommandRegistry):
             
         try:
             c = ctx.body.reproductive_system.clitorises[int(idx)]
-            if not hasattr(c, 'can_transform') or not c.can_transform:
+            if not c.can_transform:
                 ctx.console.print("[red]This clitoris cannot transform[/red]")
                 return
                 
@@ -221,11 +236,13 @@ def register_all_commands(registry: CommandRegistry):
             
         for idx, p in enumerate(ctx.body.reproductive_system.penises):
             table = Table(title=f"Penis {idx}")
+            table.add_column("Parameter", style="cyan")
+            table.add_column("Value", style="yellow")
             table.add_row("Length", f"{p.current_length:.1f}cm")
             table.add_row("Girth", f"{p.current_girth:.1f}cm")
             table.add_row("Erect", str(p.is_erect))
-            table.add_row("Transformed", str(p.is_transformed_clitoris) if hasattr(p, 'is_transformed_clitoris') else "N/A")
-            table.add_row("Has Scrotum", str(p.has_scrotum()) if hasattr(p, 'has_scrotum') else "N/A")
+            table.add_row("Transformed", str(p.is_transformed_clitoris))
+            table.add_row("Has Scrotum", str(p.has_scrotum()))
             ctx.console.print(table)
             
     def cmd_penis_ejaculate(ctx: CommandContext, idx: str = "0"):
@@ -253,30 +270,32 @@ def register_all_commands(registry: CommandRegistry):
             
         for idx, s in enumerate(ctx.body.reproductive_system.scrotums):
             table = Table(title=f"Scrotum {idx}")
-            table.add_row("Testicles", str(len(s.testicles)) if hasattr(s, 'testicles') else "N/A")
-            if hasattr(s, 'total_stored'):
-                table.add_row("Stored", f"{s.total_stored:.1f}ml")
-            table.add_row("Internal", str(s.is_internal) if hasattr(s, 'is_internal') else "N/A")
+            table.add_column("Parameter", style="cyan")
+            table.add_column("Value", style="yellow")
+            table.add_row("Testicles", str(len(s.testicles)))
+            table.add_row("Stored", f"{s.total_stored:.1f}ml")
+            table.add_row("Internal", str(s.is_internal))
             ctx.console.print(table)
             
-    # --- Appearance commands (Внешность) ---
+    # --- Appearance commands ---
     def cmd_appearance_show(ctx: CommandContext):
+        """Показать внешность персонажа"""
         if ctx.body.appearance:
             ctx.console.print(ctx.body.appearance.get_description())
             
     def cmd_body_state(ctx: CommandContext):
         """Общее состояние тела"""
         table = Table(title=f"Body: {ctx.body.name}")
+        table.add_column("Parameter", style="cyan")
+        table.add_column("Value", style="yellow")
         table.add_row("Sex", ctx.body.sex.name)
         table.add_row("Race", ctx.body.race.value)
-        if ctx.body.reproductive_system and ctx.body.reproductive_system.vaginas:
-            table.add_row("Arousal", f"{ctx.body.reproductive_system.vaginas[0].arousal:.1%}")
-        else:
-            table.add_row("Arousal", "N/A")
+        table.add_row("Arousal", f"{ctx.body.reproductive_system.vaginas[0].arousal:.1%}" 
+                     if ctx.body.reproductive_system and ctx.body.reproductive_system.vaginas else "N/A")
         ctx.console.print(table)
         
-    # Register all with categories and aliases
-    # Пищеварительная система
+    # Register all commands with categories and aliases
+    # --- Digestive ---
     registry.register("mouth.open", cmd_mouth_open, "Open mouth [cm]", 
                      aliases=["mo"], category="Пищеварительная")
     registry.register("mouth.show", cmd_mouth_show, "Show mouth status", 
@@ -287,27 +306,27 @@ def register_all_commands(registry: CommandRegistry):
                      aliases=["as"], category="Пищеварительная")
     registry.register("anus.connect_stomach", cmd_anus_connect_stomach, "Connect anus to stomach", 
                      aliases=["acs"], category="Пищеварительная")
-    registry.register("anus.penetrate", cmd_anus_penetration, "Penetrate anus (size) [depth]", 
+    registry.register("anus.penetrate", cmd_anus_penetration, "Penetrate anus <size> [depth]", 
                      aliases=["ap"], category="Пищеварительная")
     
-    # Репродуктивная система
+    # --- Reproductive ---
     registry.register("uterus.show", cmd_uterus_show, "Show all uteri status", 
                      aliases=["us"], category="Репродуктивная")
     registry.register("uterus.fullness", cmd_uterus_fullness, "Show uterus contents by index", 
                      aliases=["uf"], category="Репродуктивная")
-    registry.register("uterus.inflate", cmd_uterus_inflate, "Inflate uterus (ratio) [index]", 
+    registry.register("uterus.inflate", cmd_uterus_inflate, "Inflate uterus <ratio> [index]", 
                      aliases=["ui"], category="Репродуктивная")
-    registry.register("ovaries.show", cmd_ovaries_show, "Show ovaries status", 
+    registry.register("ovaries.show", cmd_ovaries_show, "Show ovaries", 
                      aliases=["os"], category="Репродуктивная")
     registry.register("tubes.show", cmd_tubes_show, "Show fallopian tubes", 
                      aliases=["ts"], category="Репродуктивная")
-    registry.register("vagina.show", cmd_vagina_show, "Show vaginas status", 
+    registry.register("vagina.show", cmd_vagina_show, "Show vaginas", 
                      aliases=["vs"], category="Репродуктивная")
     registry.register("vagina.stimulate", cmd_vagina_stimulate, "Stimulate vagina [intensity] [index]", 
                      aliases=["vst"], category="Репродуктивная")
     registry.register("clitoris.show", cmd_clitoris_show, "Show clitorises", 
                      aliases=["cs"], category="Репродуктивная")
-    registry.register("clitoris.transform", cmd_clitoris_transform, "Transform clitoris to penis", 
+    registry.register("clitoris.transform", cmd_clitoris_transform, "Transform clitoris to penis [index] [length] [girth]", 
                      aliases=["ct"], category="Репродуктивная")
     registry.register("penis.show", cmd_penis_show, "Show penises", 
                      aliases=["ps"], category="Репродуктивная")
@@ -316,7 +335,7 @@ def register_all_commands(registry: CommandRegistry):
     registry.register("scrotum.show", cmd_scrotum_show, "Show scrotums", 
                      aliases=["scs"], category="Репродуктивная")
     
-    # Внешность и общее состояние
+    # --- Appearance ---
     registry.register("appearance.show", cmd_appearance_show, "Show appearance description", 
                      aliases=["app"], category="Внешность")
     registry.register("body.state", cmd_body_state, "Show general body state", 

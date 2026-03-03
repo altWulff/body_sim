@@ -1,9 +1,12 @@
 # body_sim/__main__.py (улучшенная версия)
-from body_sim.systems.commands import CommandRegistry, CommandContext
-from body_sim.systems.impl import register_all_commands
-from body_sim.systems.fluid_commands import register_fluid_commands
-from body_sim.systems.update_commands import register_update_commands
-from body_sim.systems.breast_commands import register_breast_commands
+from body_sim.commands import (
+    CommandRegistry, 
+    CommandContext,
+    register_all_commands,
+    register_fluid_commands,
+    register_update_commands,
+    register_breast_commands
+)
 
 from body_sim.body.body import Body, Sex
 from body_sim.appearance.core import Race
@@ -26,11 +29,17 @@ def main():
     # Добавляем команду help
     def cmd_help(ctx: CommandContext):
         """Показать справку по командам"""
-        # Получаем help как таблицу
         help_content = registry.get_help()
         ctx.console.print(help_content)
     
     registry.register("help", cmd_help, "Показать справку", aliases=["h", "?"], category="Системная")
+    
+    # Добавляем команду exit с алиасами
+    def cmd_exit(ctx: CommandContext):
+        """Выйти из программы"""
+        pass
+    
+    registry.register("exit", cmd_exit, "Выйти из программы", aliases=["quit", "q"], category="Системная")
     
     console.print(f"[bold green]BodySim initialized: {body.name} ({body.race.value})[/]")
     console.print("[dim]Type 'help' for commands, 'exit' to quit[/]\n")
@@ -40,13 +49,16 @@ def main():
             user_input = input("> ").strip()
             if not user_input:
                 continue
-            if user_input == "exit":
-                break
-                
+            
             parts = user_input.split()
             cmd = parts[0]
             args = parts[1:]
             
+            # Проверяем, является ли команда командой выхода (с учётом алиасов)
+            resolved_cmd = registry.get(cmd)
+            if resolved_cmd == cmd_exit:
+                break
+                
             # Создаем контекст
             ctx = CommandContext(body=body, console=console, args=args)
             

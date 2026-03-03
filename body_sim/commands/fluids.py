@@ -1,13 +1,17 @@
-# body_sim/systems/fluid_commands.py
+# body_sim/commands/fluids.py
 from typing import Dict, List, Callable
 from rich.table import Table
 
-from body_sim.systems.commands import CommandRegistry, CommandContext
+from body_sim.commands.base import CommandRegistry, CommandContext
 from body_sim.core.fluids import Fluid, FluidType
 from body_sim.anatomy.base import AnatomicalComponent
+from body_sim.anatomy.reproductive.uterus import Uterus
+from body_sim.anatomy.reproductive.vagina import Vagina
+from body_sim.anatomy.digestive.stomach import Stomach
 
 def find_component_by_path(body, path: str) -> AnatomicalComponent:
     """Найти компонент по пути: reproductive.uteri.0 или digestive.stomach"""
+    # Алиасы для удобства
     path = path.replace('reproductive.', 'reproductive_system.')
     path = path.replace('digestive.', 'digestive_system.')
     
@@ -16,6 +20,7 @@ def find_component_by_path(body, path: str) -> AnatomicalComponent:
     
     for i, part in enumerate(parts):
         if part.isdigit():
+            # Индекс для списка
             idx = int(part)
             if isinstance(current, (list, tuple)) and 0 <= idx < len(current):
                 current = current[idx]
@@ -23,16 +28,19 @@ def find_component_by_path(body, path: str) -> AnatomicalComponent:
                 return None
         elif hasattr(current, part):
             current = getattr(current, part)
-        elif hasattr(current, f"{part}s"):
+        elif hasattr(current, f"{part}s"):  # множественное число (vagina -> vaginas)
             collection = getattr(current, f"{part}s")
             if isinstance(collection, list):
+                # Если следующая часть пути - индекс, используем его
                 if i + 1 < len(parts) and parts[i + 1].isdigit():
                     current = collection
                 else:
+                    # Автоматически берем первый элемент если индекс не указан
                     current = collection[0] if collection else None
             else:
                 current = collection
         else:
+            # Попробовать найти как элемент списка по имени
             if isinstance(current, list):
                 for item in current:
                     if hasattr(item, 'name') and getattr(item, 'name') == part:
@@ -48,6 +56,9 @@ def find_component_by_path(body, path: str) -> AnatomicalComponent:
             
     return current if isinstance(current, AnatomicalComponent) else None
 
+
+
+
 def get_fluid_type(type_name: str) -> FluidType:
     """Преобразовать строку в FluidType."""
     try:
@@ -55,10 +66,11 @@ def get_fluid_type(type_name: str) -> FluidType:
     except KeyError:
         return FluidType.CUSTOM
 
+
 def register_fluid_commands(registry: CommandRegistry):
     
     def cmd_fluid_add(ctx: CommandContext, path: str, fluid_type: str, amount: str, source: str = "command"):
-        """Добавить жидкость в компонент"""
+        """Добавить жидкость в компонент: fluid.add <path> <type> <amount> [source]"""
         component = find_component_by_path(ctx.body, path)
         if not component:
             ctx.console.print(f"[red]Component not found: {path}[/red]")
@@ -79,7 +91,7 @@ def register_fluid_commands(registry: CommandRegistry):
             ctx.console.print(f"[green]Added {actual_added:.1f}ml {fluid_type}[/green]")
             
     def cmd_fluid_remove(ctx: CommandContext, path: str, amount: str, fluid_type: str = None):
-        """Удалить жидкость"""
+        """Удалить жидкость: fluid.remove <path> <amount> [type]"""
         component = find_component_by_path(ctx.body, path)
         if not component:
             ctx.console.print(f"[red]Component not found: {path}[/red]")
@@ -92,7 +104,7 @@ def register_fluid_commands(registry: CommandRegistry):
         ctx.console.print(f"[green]Removed {total_removed:.1f}ml[/green]")
         
     def cmd_fluid_clear(ctx: CommandContext, path: str):
-        """Полностью очистить компонент"""
+        """Полностью очистить компонент: fluid.clear <path>"""
         component = find_component_by_path(ctx.body, path)
         if not component:
             ctx.console.print(f"[red]Component not found: {path}[/red]")
@@ -103,7 +115,7 @@ def register_fluid_commands(registry: CommandRegistry):
         ctx.console.print(f"[yellow]Cleared {total:.1f}ml[/yellow]")
         
     def cmd_fluid_show(ctx: CommandContext, path: str):
-        """Показать содержимое"""
+        """Показать содержимое: fluid.show <path>"""
         component = find_component_by_path(ctx.body, path)
         if not component:
             ctx.console.print(f"[red]Component not found: {path}[/red]")
@@ -131,7 +143,7 @@ def register_fluid_commands(registry: CommandRegistry):
         ctx.console.print(table)
         
     def cmd_fluid_transfer(ctx: CommandContext, from_path: str, to_path: str, amount: str, fluid_type: str = None):
-        """Перенести жидкость"""
+        """Перенести жидкость: fluid.transfer <from> <to> <amount> [type]"""
         source = find_component_by_path(ctx.body, from_path)
         target = find_component_by_path(ctx.body, to_path)
         
@@ -141,6 +153,7 @@ def register_fluid_commands(registry: CommandRegistry):
             
         ftype = get_fluid_type(fluid_type) if fluid_type else None
         
+        # transfer_to наследуется от FluidContainer
         source.transfer_to(target, float(amount), ftype, ctx.body.event_bus)
         
         ctx.console.print(f"[green]Transferred {amount}ml from {from_path} to {to_path}[/green]")
@@ -148,14 +161,12 @@ def register_fluid_commands(registry: CommandRegistry):
     def cmd_fluid_list_types(ctx: CommandContext):
         """Список доступных типов жидкостей"""
         table = Table(title="Fluid Types")
-        table.add_column("Name", style="cyan")
-        table.add_column("Value", style="green")
         for ft in FluidType:
             table.add_row(ft.name, ft.value)
         ctx.console.print(table)
         
     def cmd_fluid_fill(ctx: CommandContext, path: str, fluid_type: str):
-        """Заполнить компонент до максимума"""
+        """Заполнить компонент до максимума: fluid.fill <path> <type>"""
         component = find_component_by_path(ctx.body, path)
         if not component:
             ctx.console.print(f"[red]Component not found: {path}[/red]")
@@ -176,12 +187,13 @@ def register_fluid_commands(registry: CommandRegistry):
         ctx.console.print(f"[green]Filled with {available:.1f}ml {fluid_type}[/green]")
         
     def cmd_fluid_mix(ctx: CommandContext, path: str):
-        """Смешать все жидкости в компоненте"""
+        """Смешать все жидкости в компоненте: fluid.mix <path>"""
         component = find_component_by_path(ctx.body, path)
         if not component or len(component.fluids) < 2:
             ctx.console.print("[red]Nothing to mix[/red]")
             return
             
+        # Смешиваем все в первую жидкость
         base = component.fluids[0]
         for fluid in component.fluids[1:]:
             base = base.merge(fluid)
@@ -192,9 +204,8 @@ def register_fluid_commands(registry: CommandRegistry):
 
     # Удобные алиасы для частых операций
     def cmd_fill_uterus(ctx: CommandContext, amount: str = "100", fluid_type: str = "water"):
-        """Заполнить матку"""
+        """Заполнить матку: fill.uterus <amount> [type]"""
         if not ctx.body.reproductive_system or not ctx.body.reproductive_system.uteri:
-            ctx.console.print("[red]No uterus[/red]")
             return
         uterus = ctx.body.reproductive_system.uteri[0]
         fluid = Fluid(
@@ -207,9 +218,8 @@ def register_fluid_commands(registry: CommandRegistry):
         ctx.console.print(f"[green]Uterus filled: {actual:.1f}ml {fluid_type}[/green]")
         
     def cmd_fill_stomach(ctx: CommandContext, amount: str = "500", fluid_type: str = "water"):
-        """Заполнить желудок"""
+        """Заполнить желудок: fill.stomach <amount> [type]"""
         if not ctx.body.digestive_system:
-            ctx.console.print("[red]No digestive system[/red]")
             return
         stomach = ctx.body.digestive_system.stomach
         fluid = Fluid(
@@ -221,25 +231,26 @@ def register_fluid_commands(registry: CommandRegistry):
         ctx.console.print(f"[green]Stomach filled: {amount}ml {fluid_type}[/green]")
 
     # Регистрация с категориями и алиасами
-    registry.register("fluid.add", cmd_fluid_add, "Add fluid: <path> <type> <ml>", 
+    # --- Жидкости ---
+    registry.register("fluid.add", cmd_fluid_add, "Add fluid: fluid.add <path> <type> <ml>", 
                      aliases=["fa"], category="Жидкости")
-    registry.register("fluid.remove", cmd_fluid_remove, "Remove fluid: <path> <ml> [type]", 
+    registry.register("fluid.remove", cmd_fluid_remove, "Remove fluid: fluid.remove <path> <ml> [type]", 
                      aliases=["fr"], category="Жидкости")
-    registry.register("fluid.clear", cmd_fluid_clear, "Clear all fluids: <path>", 
+    registry.register("fluid.clear", cmd_fluid_clear, "Clear all fluids: fluid.clear <path>", 
                      aliases=["fc"], category="Жидкости")
-    registry.register("fluid.show", cmd_fluid_show, "Show fluids: <path>", 
+    registry.register("fluid.show", cmd_fluid_show, "Show fluids: fluid.show <path>", 
                      aliases=["fs"], category="Жидкости")
-    registry.register("fluid.transfer", cmd_fluid_transfer, "Transfer: <from> <to> <ml> [type]", 
+    registry.register("fluid.transfer", cmd_fluid_transfer, "Transfer: fluid.transfer <from> <to> <ml> [type]", 
                      aliases=["ft"], category="Жидкости")
     registry.register("fluid.types", cmd_fluid_list_types, "List fluid types", 
-                     aliases=["flt"], category="Жидкости")
-    registry.register("fluid.fill", cmd_fluid_fill, "Fill to max: <path> <type>", 
+                     aliases=["ftypes"], category="Жидкости")
+    registry.register("fluid.fill", cmd_fluid_fill, "Fill to max: fluid.fill <path> <type>", 
                      aliases=["ff"], category="Жидкости")
-    registry.register("fluid.mix", cmd_fluid_mix, "Mix all fluids: <path>", 
+    registry.register("fluid.mix", cmd_fluid_mix, "Mix all fluids: fluid.mix <path>", 
                      aliases=["fm"], category="Жидкости")
     
-    # Быстрые команды заполнения
+    # --- Заполнение (быстрые команды) ---
     registry.register("fill.uterus", cmd_fill_uterus, "Quick fill uterus [amount] [type]", 
-                     aliases=["fu"], category="Жидкости")
+                     aliases=["fu"], category="Заполнение")
     registry.register("fill.stomach", cmd_fill_stomach, "Quick fill stomach [amount] [type]", 
-                     aliases=["fst"], category="Жидкости")
+                     aliases=["fst"], category="Заполнение")

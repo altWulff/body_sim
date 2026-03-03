@@ -1,4 +1,4 @@
-# body_sim/systems/breast_commands.py
+# body_sim/commands/breasts.py
 """
 Команды для управления грудью BodySim 2.0
 """
@@ -7,8 +7,8 @@ from typing import Optional
 from rich.table import Table
 from rich.panel import Panel
 
-from body_sim.systems.commands import CommandRegistry, CommandContext
-from body_sim.systems.fluid_commands import find_component_by_path
+from body_sim.commands.base import CommandRegistry, CommandContext
+from body_sim.commands.fluids import find_component_by_path
 from body_sim.core.fluids import Fluid, FluidType
 from body_sim.anatomy.breasts import BreastComponent, CupSize
 
@@ -295,3 +295,4 @@ def register_breast_commands(registry: CommandRegistry):
                      aliases=["bro"], category="Грудь")
     registry.register("breasts.nipple", cmd_breasts_nipple, "Nipple control: <open/close> [amount] [side]", 
                      aliases=["bn"], category="Грудь")
+                     

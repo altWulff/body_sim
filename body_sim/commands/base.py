@@ -1,4 +1,4 @@
-# body_sim/systems/commands.py
+# body_sim/commands/base.py
 from __future__ import annotations
 from typing import Dict, List, Callable, Optional, Any, TYPE_CHECKING, Union
 from dataclasses import dataclass, field
@@ -31,7 +31,7 @@ class CommandRegistry:
         self._commands: Dict[str, Callable[[CommandContext], Any]] = {}
         self._aliases: Dict[str, str] = {}
         self._help_text: Dict[str, str] = {}
-        self._categories: Dict[str, str] = {}
+        self._categories: Dict[str, str] = {}  # command -> category
     
     def register(self, name: str, func: Callable[[CommandContext], Any], 
                  help_text: str = "", aliases: List[str] = None, 
@@ -44,7 +44,7 @@ class CommandRegistry:
             func: Функция-обработчик
             help_text: Описание команды
             aliases: Список алиасов
-            category: Категория для группировки
+            category: Категория для группировки (например: "Грудь", "Репродуктивная", "Системная")
         """
         self._commands[name] = func
         self._help_text[name] = help_text
@@ -114,10 +114,10 @@ class CommandRegistry:
             padding=(0, 1)
         )
         
-        table.add_column("Категория", style="cyan", width=18, no_wrap=True)
-        table.add_column("Команда", style="green", width=22, no_wrap=True)
-        table.add_column("Алиасы", style="yellow", width=20)
-        table.add_column("Описание", style="white", min_width=25)
+        table.add_column("Категория", style="cyan", width=16, no_wrap=True)
+        table.add_column("Команда", style="green", width=20, no_wrap=True)
+        table.add_column("Алиасы", style="dim", width=15)
+        table.add_column("Описание", style="white", min_width=30)
         
         # Группируем по категориям
         cats = defaultdict(list)
@@ -125,9 +125,8 @@ class CommandRegistry:
             cat = self._categories.get(cmd, "Общее")
             cats[cat].append(cmd)
         
-        # Сортируем категории (Системные в конец)
-        priority = {"Системная": 999, "Общее": 1000}
-        sorted_cats = sorted(cats.keys(), key=lambda x: (priority.get(x, 0), x))
+        # Сортируем категории (Общее в конец)
+        sorted_cats = sorted(cats.keys(), key=lambda x: (x == "Общее", x))
         
         for cat in sorted_cats:
             commands_in_cat = sorted(cats[cat])
@@ -139,8 +138,8 @@ class CommandRegistry:
                 
                 # Описание (обрезаем если слишком длинное)
                 help_txt = self._help_text.get(cmd, "Нет описания")
-                if len(help_txt) > 45:
-                    help_txt = help_txt[:42] + "..."
+                if len(help_txt) > 50:
+                    help_txt = help_txt[:47] + "..."
                 
                 # Показываем категорию только в первой строке группы
                 cat_display = f"[bold]{cat}[/]" if idx == 0 else ""
@@ -156,3 +155,4 @@ class CommandRegistry:
     def get_categories(self) -> List[str]:
         """Получить список всех категорий."""
         return list(set(self._categories.values()))
+        
