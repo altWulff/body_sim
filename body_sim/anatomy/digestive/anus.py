@@ -40,4 +40,4 @@ class Anus(AnatomicalComponent):
                 "connected_to_stomach": self.connected_to_stomach,
             }
         )
-        return basestring
+        return base

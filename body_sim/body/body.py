@@ -70,15 +70,21 @@ class Body:
         """Определить размер груди на основе параметров тела."""
         race_cups = {
             Race.SUCCUBUS: CupSize.D,
+            Race.INCUBUS: CupSize.D,
             Race.DEMON: CupSize.D,
+            Race.DRAGON: CupSize.D,      # Добавить
+            Race.DRAGONKIN: CupSize.C,   # Добавить
             Race.HIGH_ELF: CupSize.B,
             Race.DARK_ELF: CupSize.C,
+            Race.VAMPIRE: CupSize.C,     # Добавить
+            Race.DEMI_HUMAN: CupSize.C,  # Добавить
             Race.HUMAN: CupSize.C,
             Race.BEASTKIN: CupSize.C,
         }
-
         base = race_cups.get(self.race, CupSize.C)
-
+        # Суккубы и инкубы игнорируют BMI (всегда минимум D)
+        if self.race in (Race.SUCCUBUS, Race.INCUBUS):
+            return base
         # Корректировка от BMI
         bmi = self.weight / ((self.height / 100) ** 2)
         if bmi > 30:
@@ -103,8 +109,10 @@ class Body:
             self.reproductive_system.add_uterus(uterus)
 
             clitoris = Clitoris(
-                base_length=1.5, can_transform=(self.race == Race.DEMON)
-            )
+                base_length=1.5, 
+                can_transform=(self.race in (Race.DEMON, Race.SUCCUBUS, Race.INCUBUS, Race.DRAGON))
+                )
+
             self.reproductive_system.add_clitoris(clitoris)
 
         if self.sex == Sex.MALE or self.sex == Sex.FUTANARI:
@@ -120,7 +128,7 @@ class Body:
         target_length: float = 10.0,
         target_girth: float = 8.0,
     ) -> bool:
-        if not self.reproductive_system or cloris_idx >= len(
+        if not self.reproductive_system or clitoris_idx >= len(
             self.reproductive_system.clitorises
         ):
             return False

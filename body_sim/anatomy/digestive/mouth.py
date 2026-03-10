@@ -33,4 +33,4 @@ class Mouth(AnatomicalComponent):
                 "can_accept": self.can_accept(self.max_opening),
             }
         )
-        return basestring
+        return base

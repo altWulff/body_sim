@@ -36,4 +36,4 @@ class Stomach(AnatomicalComponent):
                 "fullness": self.get_fullness(),
             }
         )
-        return basestring
+        return base

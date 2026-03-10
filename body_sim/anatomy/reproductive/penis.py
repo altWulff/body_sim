@@ -10,6 +10,7 @@ from body_sim.core.events import EventBus
 
 @dataclass
 class Penis(AnatomicalComponent):
+    name: str = field(default="penis", init=False)
     base_length: float = 15.0
     base_girth: float = 12.0
     is_erect: bool = False
