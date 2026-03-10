@@ -4,20 +4,22 @@ from unittest.mock import MagicMock, Mock
 import sys
 from pathlib import Path
 
+
 # Моки для зависимостей проекта (создаем до импорта body_sim)
 class MockEventBus:
     def __init__(self):
         self.subscribers = {}
         self.events = []
-    
+
     def subscribe(self, event_type, callback):
         self.subscribers.setdefault(event_type, []).append(callback)
-    
+
     def emit(self, event):
         self.events.append(event)
         if event.type in self.subscribers:
             for cb in self.subscribers[event.type]:
                 cb(event)
+
 
 class MockEventType:
     FLUID_ADDED = "fluid_added"
@@ -31,14 +33,18 @@ class MockEventType:
     ENGORGEMENT_RELIEF = "engorgement_relief"
     CUP_CHANGE = "cup_change"
 
+
 # Патчим модули перед импортом
 import body_sim.core.events as events_module
+
 events_module.EventBus = MockEventBus
 events_module.EventType = MockEventType
+
 
 @pytest.fixture
 def event_bus():
     return MockEventBus()
+
 
 @pytest.fixture
 def mock_fluid_mixture():
