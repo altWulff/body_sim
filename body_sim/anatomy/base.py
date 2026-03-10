@@ -13,7 +13,7 @@ class AnatomicalComponent(BaseComponent, FluidContainer):
     Интегрирует физику, жидкости и возбуждение.
     """
     
-    def __init__(self, name: str, base_volume: float = 100.0, max_volume_multiplier: float = 1.5, max_volume: float = None):
+    def __init__(self, name: str, base_volume: float = 100.0, max_volume_multiplier: float = 1.5, max_volume: float = None, sensitivity: float = 1.0):
         BaseComponent.__init__(self, name)
         
         # Определяем объемы
@@ -33,7 +33,7 @@ class AnatomicalComponent(BaseComponent, FluidContainer):
         self._current_max_volume = actual_max
         
         # Физиология
-        self.sensitivity = 1.0
+        self.sensitivity = sensitivity
         self.current_stimulation = 0.0
         self.pain_level = 0.0
         self.arousal = 0.0

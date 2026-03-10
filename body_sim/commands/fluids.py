@@ -57,8 +57,6 @@ def find_component_by_path(body, path: str) -> AnatomicalComponent:
     return current if isinstance(current, AnatomicalComponent) else None
 
 
-
-
 def get_fluid_type(type_name: str) -> FluidType:
     """Преобразовать строку в FluidType."""
     try:
@@ -162,7 +160,7 @@ def register_fluid_commands(registry: CommandRegistry):
         """Список доступных типов жидкостей"""
         table = Table(title="Fluid Types")
         for ft in FluidType:
-            table.add_row(ft.name, ft.value)
+            table.add_row(f"{ft.name}", f"{ft.value}")
         ctx.console.print(table)
         
     def cmd_fluid_fill(ctx: CommandContext, path: str, fluid_type: str):

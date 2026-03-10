@@ -1,4 +1,4 @@
-# body_sim/commands/breasts.py
+# === commands/breasts.py (исправленный) ===
 """
 Команды для управления грудью BodySim 2.0
 """
@@ -12,7 +12,7 @@ from body_sim.commands.fluids import find_component_by_path
 from body_sim.core.fluids import Fluid, FluidType
 from body_sim.anatomy.chest import CupSize, Breasts
 
-def get_breast(ctx: CommandContext, side: str = "left") -> Optional[Breasts]:
+def get_breast(ctx: CommandContext, side: str = "left"):
     """Получить грудь по стороне."""
     if not hasattr(ctx.body, 'breasts') or ctx.body.breasts is None:
         ctx.console.print("[red]No breasts[/red]")
@@ -23,7 +23,7 @@ def get_breast(ctx: CommandContext, side: str = "left") -> Optional[Breasts]:
     elif side.lower() in ("right", "r", "1"):
         return ctx.body.breasts.right
     elif side.lower() in ("both", "b"):
-        return None  # Special case for both
+        return None
     else:
         ctx.console.print(f"[red]Invalid side: {side} (use left/right/both)[/red]")
         return None
@@ -33,7 +33,6 @@ def register_breast_commands(registry: CommandRegistry):
     def cmd_breasts_show(ctx: CommandContext, side: str = "left"):
         """Показать состояние груди: breasts.show [left/right/both]"""
         if side.lower() in ("both", "b"):
-            # Показать обе
             left = ctx.body.breasts.left if ctx.body.breasts else None
             right = ctx.body.breasts.right if ctx.body.breasts else None
             
@@ -46,11 +45,25 @@ def register_breast_commands(registry: CommandRegistry):
             table.add_column("Left", style="green")
             table.add_column("Right", style="yellow")
             
+            # ИСПРАВЛЕНО: используем .state.name вместо ._state
+            left_state = left.state.name if hasattr(left.state, 'name') else str(left.state)
+            right_state = right.state.name if hasattr(right.state, 'name') else str(right.state)
+            
+            left_lact = "Unknown"
+            right_lact = "Unknown"
+            try:
+                if hasattr(left.lactation, 'profile') and hasattr(left.lactation.profile, 'state'):
+                    left_lact = left.lactation.profile.state.name if hasattr(left.lactation.profile.state, 'name') else str(left.lactation.profile.state)
+                if hasattr(right.lactation, 'profile') and hasattr(right.lactation.profile, 'state'):
+                    right_lact = right.lactation.profile.state.name if hasattr(right.lactation.profile.state, 'name') else str(right.lactation.profile.state)
+            except:
+                pass
+            
             table.add_row("Cup", left.current_cup.name, right.current_cup.name)
-            table.add_row("State", left._state, right._state)
+            table.add_row("State", left_state, right_state)
             table.add_row("Filled", f"{left.filled:.1f}ml", f"{right.filled:.1f}ml")
             table.add_row("Pressure", f"{left.pressure:.2f}", f"{right.pressure:.2f}")
-            table.add_row("Lactation", left.lactation.profile.state.name, right.lactation.profile.state.name)
+            table.add_row("Lactation", left_lact, right_lact)
             table.add_row("Stretch", f"{left.inflation.profile.stretch_ratio:.2f}x", f"{right.inflation.profile.stretch_ratio:.2f}x")
             
             ctx.console.print(table)
@@ -64,13 +77,14 @@ def register_breast_commands(registry: CommandRegistry):
             table.add_column("Property", style="cyan")
             table.add_column("Value", style="white")
             
+            # ИСПРАВЛЕНО: state как строка
+            state_str = breast.state.name if hasattr(breast.state, 'name') else str(breast.state)
+            
             table.add_row("Base Cup", breast.cup_size.name)
-            table.add_row("Current Volume", f"{breast.volume:.1f}ml")
-            table.add_row("Current Volume", f"{breast.current_volume:.1f}ml")
-
+            table.add_row("Volume", f"{breast.volume:.1f}ml")  # ИСПРАВЛЕНО: убрано current_volume
             table.add_row("Filled", f"{breast.filled:.1f}ml / {breast._max_volume:.1f}ml")
             table.add_row("Fill Ratio", f"{breast.fill_ratio*100:.1f}%")
-            table.add_row("State", breast._state)
+            table.add_row("State", state_str)
             table.add_row("Pressure", f"{breast.pressure:.2f}")
             table.add_row("Sag", f"{breast.sag:.3f}")
             table.add_row("Elasticity", f"{breast.elasticity:.2f}")
@@ -79,23 +93,62 @@ def register_breast_commands(registry: CommandRegistry):
             nipple = breast.areola.nipples[0] if breast.areola.nipples else None
             if nipple:
                 table.add_row("Nipple Gape", f"{nipple.gape_diameter:.2f}cm")
-                table.add_row("Nipple Erect", str(nipple.is_erect))
+                table.add_row("Nipple Erect", "Yes" if nipple.is_erect else "No")
             
             # Lactation
-            table.add_row("Lactation State", breast.lactation.profile.state.name)
-            table.add_row("Hormone Level", f"{breast.lactation.profile.hormone_level:.2f}")
-            table.add_row("Milk Produced", f"{breast.lactation._total_produced:.1f}ml")
+            lact_state = "Unknown"
+            try:
+                if hasattr(breast.lactation, 'profile') and hasattr(breast.lactation.profile, 'state'):
+                    lact_state = breast.lactation.profile.state.name if hasattr(breast.lactation.profile.state, 'name') else str(breast.lactation.profile.state)
+            except:
+                pass
+            
+            table.add_row("Lactation State", lact_state)
+            
+            if hasattr(breast.lactation, 'profile'):
+                try:
+                    hormone = getattr(breast.lactation.profile, 'hormone_level', 0)
+                    table.add_row("Hormone Level", f"{hormone:.2f}")
+                except:
+                    pass
+            
+            if hasattr(breast.lactation, '_total_produced'):
+                try:
+                    table.add_row("Milk Produced", f"{breast.lactation._total_produced:.1f}ml")
+                except:
+                    pass
             
             # Inflation
-            table.add_row("Stretch Ratio", f"{breast.inflation.profile.stretch_ratio:.2f}x")
-            table.add_row("Skin Tension", f"{breast.inflation.get_skin_tension():.1%}")
-            table.add_row("Stretch Marks", f"{breast.inflation.profile.stretch_marks:.1%}")
+            if hasattr(breast.inflation, 'profile'):
+                table.add_row("Stretch Ratio", f"{breast.inflation.profile.stretch_ratio:.2f}x")
+                if hasattr(breast.inflation, 'get_skin_tension'):
+                    table.add_row("Skin Tension", f"{breast.inflation.get_skin_tension():.1%}")
+                if hasattr(breast.inflation.profile, 'stretch_marks'):
+                    table.add_row("Stretch Marks", f"{breast.inflation.profile.stretch_marks:.1%}")
             
             # Fluids
-            if breast.mixture.total() > 0:
-                comp = ", ".join([f"{ft.name}:{vol:.1f}ml" for ft, vol in breast.mixture.composition().items()])
+            total_fluid = breast.mixture.total()
+            if total_fluid > 0:
+                try:
+                    contents = breast.mixture.composition()
+                    comp_parts = []
+                    for ft, vol in contents.items():
+                        name = ft.name if hasattr(ft, 'name') else str(ft)
+                        # Проверяем что объемы совпадают
+                        if vol > 0:
+                            comp_parts.append(f"{name}:{vol:.1f}ml")
+                    
+                    if comp_parts:
+                        comp = ", ".join(comp_parts)
+                        # Добавляем общий объем для проверки
+                        comp += f" [dim](total: {total_fluid:.1f}ml)[/dim]"
+                    else:
+                        comp = f"{total_fluid:.1f}ml"
+                        
+                except Exception as e:
+                    comp = f"{total_fluid:.1f}ml"
+                
                 table.add_row("Contents", comp)
-            
             ctx.console.print(table)
     
     def cmd_breasts_add(ctx: CommandContext, amount: str, fluid_type: str = "milk", side: str = "left"):
@@ -130,8 +183,11 @@ def register_breast_commands(registry: CommandRegistry):
         if removed > 0:
             ctx.console.print(f"[green]Expressed {removed:.1f}ml from {side} breast[/green]")
             # Стимуляция лактации
-            if breast.lactation.is_active:
-                ctx.console.print(f"[dim]Lactation stimulated[/dim]")
+            try:
+                if breast.lactation.is_active:
+                    ctx.console.print(f"[dim]Lactation stimulated[/dim]")
+            except:
+                pass
         else:
             ctx.console.print(f"[yellow]Nothing to express[/yellow]")
     
@@ -195,10 +251,10 @@ def register_breast_commands(registry: CommandRegistry):
             
             if left:
                 result = left.tick(float(dt), ctx.body.event_bus)
-                ctx.console.print(f"[dim]Left: {result}[/dim]")
+                ctx.console.print(f"[dim]Left: state={result.get('state')}, filled={result.get('filled', 0):.1f}ml[/dim]")
             if right:
                 result = right.tick(float(dt), ctx.body.event_bus)
-                ctx.console.print(f"[dim]Right: {result}[/dim]")
+                ctx.console.print(f"[dim]Right: state={result.get('state')}, filled={result.get('filled', 0):.1f}ml[/dim]")
         else:
             breast = get_breast(ctx, side)
             if not breast:
@@ -206,14 +262,13 @@ def register_breast_commands(registry: CommandRegistry):
             
             result = breast.tick(float(dt), ctx.body.event_bus)
             
-            # Форматированный вывод
+            # ИСПРАВЛЕНО: безопасная работа с результатом (там уже строки)
             panel = Panel(
                 f"State: {result.get('state', 'N/A')}\n"
                 f"Cup: {result.get('cup', 'N/A')}\n"
                 f"Filled: {result.get('filled', 0):.1f}ml\n"
                 f"Pressure: {result.get('pressure', 0):.2f}\n"
-                f"Leaked: {result.get('leaked', 0):.2f}ml\n"
-                f"Produced: {result.get('produced', 0):.2f}ml",
+                f"Leaked: {result.get('leaked', 0):.2f}ml",
                 title=f"Tick Result ({side})",
                 border_style="blue"
             )
@@ -225,20 +280,18 @@ def register_breast_commands(registry: CommandRegistry):
         if not breast:
             return
         
-        from body_sim.systems.insertion import InsertedObject, InsertionType
+        # ИСПРАВЛЕНО: передаем dict вместо объекта
+        obj_data = {
+            'name': object_name,
+            'volume': float(volume),
+            'length': 5.0,
+            'diameter': 1.0,
+            'insertion_type': 'foreign'
+        }
         
-        obj = InsertedObject(
-            name=object_name,
-            volume=float(volume),
-            length=5.0,
-            diameter=1.0,
-            insertion_type=InsertionType.FOREIGN
-        )
-        
-        if breast.insert_object(obj):
+        if breast.insert_object(obj_data):
             ctx.console.print(f"[green]Inserted {object_name} ({volume}ml) into {side} breast[/green]")
-            # Увеличиваем давление
-            breast.calculate_pressure()
+            # Давление обновляется автоматически в tick
         else:
             ctx.console.print(f"[red]Cannot insert (too large or blocked)[/red]")
     
@@ -250,7 +303,7 @@ def register_breast_commands(registry: CommandRegistry):
         
         obj = breast.remove_object(object_name)
         if obj:
-            ctx.console.print(f"[green]Removed {obj['name']} from {side} breast[/green]")
+            ctx.console.print(f"[green]Removed {obj.get('name', object_name)} from {side} breast[/green]")
         else:
             ctx.console.print(f"[yellow]Object {object_name} not found[/yellow]")
     
@@ -272,11 +325,79 @@ def register_breast_commands(registry: CommandRegistry):
             nipple.close()
             ctx.console.print("[yellow]Nipple closed[/yellow]")
         elif action.lower() == "stretch":
-            # Принудительное растяжение
             nipple.gape_diameter = float(amount)
+            nipple.is_open = nipple.gape_diameter > 0.01
             ctx.console.print(f"[green]Nipple stretched to {amount}cm[/green]")
+
+    def cmd_breasts_fullness(ctx: CommandContext, side: str = "left"):
+        """Показать заполненность груди: breasts.fullness [left/right/both]"""
+        if side.lower() in ("both", "b"):
+            left = ctx.body.breasts.left if ctx.body.breasts else None
+            right = ctx.body.breasts.right if ctx.body.breasts else None
+            
+            if not left or not right:
+                ctx.console.print("[red]Грудь не инициализирована[/red]")
+                return
+            
+            table = Table(title="Заполненность груди")
+            table.add_column("Сторона", style="cyan")
+            table.add_column("Текущий объем", style="green")
+            table.add_column("Максимум", style="yellow")
+            table.add_column("Процент", style="magenta")
+            table.add_column("Бар", style="white")
+            
+            for breast, name in [(left, "Left"), (right, "Right")]:
+                filled = breast.filled
+                max_vol = breast._max_volume
+                ratio = breast.fill_ratio
+                percent = ratio * 100
+                
+                # Визуальный бар (20 символов)
+                filled_len = int(ratio * 20)
+                bar = "█" * filled_len + "░" * (20 - filled_len)
+                
+                color = "green" if ratio < 0.5 else "yellow" if ratio < 0.8 else "red"
+                table.add_row(
+                    name,
+                    f"{filled:.1f} ml",
+                    f"{max_vol:.1f} ml",
+                    f"[{color}]{percent:.1f}%[/{color}]",
+                    f"[{color}]{bar}[/{color}]"
+                )
+            
+            ctx.console.print(table)
+            
+            # Дополнительная информация о состоянии
+            if left.state.name == "LEAKING" or right.state.name == "LEAKING":
+                ctx.console.print("[yellow]⚠ Одна или обе груди протекают![/yellow]")
+            if left.state.name == "OVERPRESSURED" or right.state.name == "OVERPRESSURED":
+                ctx.console.print("[red]⚠ Критическое давление![/red]")
+        else:
+            breast = get_breast(ctx, side)
+            if not breast:
+                return
+            
+            filled = breast.filled
+            max_vol = breast._max_volume
+            ratio = breast.fill_ratio
+            percent = ratio * 100
+            
+            # Детальный вывод для одной груди
+            panel = Panel(
+                f"[bold]Объем:[/bold] {filled:.1f} / {max_vol:.1f} ml\n"
+                f"[bold]Заполнение:[/bold] {percent:.1f}%\n"
+                f"[bold]Состояние:[/bold] {breast.state.name if hasattr(breast.state, 'name') else str(breast.state)}\n"
+                f"[bold]Давление:[/bold] {breast.pressure:.2f}\n"
+                f"[bold]Растяжение:[/bold] {breast.inflation.profile.stretch_ratio:.2f}x\n"
+                f"\n[{'green' if ratio < 0.5 else 'yellow' if ratio < 0.8 else 'red'}]"
+                f"{'█' * int(ratio * 30)}{'░' * (30 - int(ratio * 30))}[/]"
+                f" {percent:.0f}%",
+                title=f"Заполненность ({side.title()}) - {breast.current_cup.name}",
+                border_style="blue" if ratio < 0.8 else "red"
+            )
+            ctx.console.print(panel)
     
-    # Регистрация команд с категориями и алиасами
+    # Регистрация команд
     registry.register("breasts.show", cmd_breasts_show, "Show breast status [left/right/both]", 
                      aliases=["bs"], category="Грудь")
     registry.register("breasts.add", cmd_breasts_add, "Add fluid: <amount> [type] [side]", 
@@ -295,4 +416,6 @@ def register_breast_commands(registry: CommandRegistry):
                      aliases=["bro"], category="Грудь")
     registry.register("breasts.nipple", cmd_breasts_nipple, "Nipple control: <open/close> [amount] [side]", 
                      aliases=["bn"], category="Грудь")
-                     
+    registry.register("breasts.fullness", cmd_breasts_fullness, 
+                     "Показать заполненность груди [left/right/both]", 
+                     aliases=["bf", "bfullness"], category="Грудь")

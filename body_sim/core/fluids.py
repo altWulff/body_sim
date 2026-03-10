@@ -127,11 +127,8 @@ class FluidMixture:
         return self._contents.get(fluid_type, 0.0)
     
     def composition(self) -> Dict[FluidType, float]:
-        """Состав смеси (тип -> доля 0-1)."""
-        total = self.total()
-        if total == 0:
-            return {}
-        return {ftype: vol/total for ftype, vol in self._contents.items()}
+        """Состав смеси (тип -> объем в мл)."""
+        return self._contents.copy()
     
     def viscosity(self) -> float:
         """Средняя вязкость смеси."""

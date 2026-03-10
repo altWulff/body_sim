@@ -24,7 +24,7 @@ class LactationProfile:
     state: LactationState = LactationState.OFF
     hormone_level: float = 1.0
     letdown_reflex: float = 1.0
-    base_rate_per_100ml: float = 2.0
+    base_rate_per_100ml: float = 3.0
     min_rate: float = 3.0
     max_rate: float = 50.0
     stimulation_sensitivity: float = 2.0
