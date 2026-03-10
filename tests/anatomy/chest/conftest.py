@@ -57,3 +57,14 @@ def mock_fluid_mixture():
     mixture.remove = MagicMock(return_value={})
     mixture.get_amount = MagicMock(return_value=0.0)
     return mixture
+
+
+@pytest.fixture(autouse=True)
+def patch_dependencies(monkeypatch, mock_fluid_mixture):
+    # Патчим FluidMixture в breast_row модуле напрямую
+    monkeypatch.setattr(
+        "body_sim.anatomy.chest.breast_row.FluidMixture", lambda: mock_fluid_mixture
+    )
+
+    # Аналогично для других импортов если нужно
+    # ...
